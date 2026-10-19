@@ -72,5 +72,19 @@ CREATE TABLE IF NOT EXISTS subscribers_cache (
 -- Unsubscribe support ($0): soft-delete via status='Unsubscribed' (audit + re-subscribe).
 -- Run once in Supabase SQL editor if table already exists:
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMPTZ;
+-- Drip queue: shard 300/day Brevo cap across Mon-Thu ($0 scale to ~2000 subs).
+-- Run in Supabase SQL editor once:
+CREATE TABLE IF NOT EXISTS email_queue (
+    email CITEXT NOT NULL,
+    week DATE NOT NULL,
+    priority INT DEFAULT 0,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending','sent','failed','skipped')),
+    attempts INT DEFAULT 0,
+    last_error TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    sent_at TIMESTAMPTZ,
+    PRIMARY KEY (email, week)
+);
+CREATE INDEX IF NOT EXISTS idx_queue_week_status ON email_queue (week, status, priority DESC);
 -- Free-tier hygiene: run weekly before pipeline
 -- DELETE FROM jobs WHERE posted_at < NOW() - INTERVAL '14 days';

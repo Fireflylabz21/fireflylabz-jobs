@@ -38,6 +38,8 @@ BRAND_WEBSITE = os.getenv("BRAND_WEBSITE", "https://fireflylabz.example.com")
 MAX_SUBSCRIBERS_PER_RUN = int(os.getenv("MAX_SUBSCRIBERS_PER_RUN", "100"))
 THROTTLE_SECONDS = float(os.getenv("THROTTLE_SECONDS", "4.5"))
 JOB_LOOKBACK_DAYS = int(os.getenv("JOB_LOOKBACK_DAYS", "14"))
+# Drip queue: Brevo 300/day free -> send 280/day buffer across Mon-Thu (~1120/week $0).
+BATCH_LIMIT = int(os.getenv("BATCH_LIMIT", "280"))
 DRY_RUN = os.getenv("DRY_RUN", "false").strip().lower() in ("1", "true", "yes")
 
 REQUIRED_ENV_LIVE = ["GEMINI_API_KEY", "SUPABASE_DB_URL"]

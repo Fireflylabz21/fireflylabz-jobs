@@ -94,3 +94,113 @@ def already_sent_today_db(last_sent) -> bool:
         return False
     today = _dt.date.today().isoformat()
     return str(last_sent).strip()[:10] == today
+
+
+def week_monday() -> str:
+    """Current week key (Monday date) for email_queue sharding."""
+    import datetime as _dt
+    today = _dt.date.today()
+    monday = today - _dt.timedelta(days=today.weekday())
+    return monday.isoformat()
+
+
+def score_priority(r: Dict[str, Any]) -> int:
+    """Higher = send first. Fresh + niche + exact-city wins, no starvation.
+    new (never sent) +100 | not sent in 14d +30 | 10y+ exp niche +20 |
+    exact-city in skills-area +10 | long name (proxy engaged) +5.
+    """
+    score = 0
+    if not r.get("last_sent"):
+        score += 100
+    try:
+        exp = int(r.get("years_experience") or 0)
+        if exp >= 10:
+            score += 20
+        elif exp >= 5:
+            score += 10
+    except (TypeError, ValueError):
+        pass
+    loc = str(r.get("expected_location") or r.get("current_location") or "").strip().lower()
+    if loc in ("bangalore", "bengaluru", "hyderabad", "chennai"):
+        score += 10
+    if len(str(r.get("full_name") or "")) > 8:
+        score += 5
+    return score
+
+
+def enqueue_week(conn, week: str | None = None) -> tuple:
+    """Sunday step: enqueue all Active subs for this week with priority. Returns (queued, total)."""
+    import datetime as _dt
+    week = week or week_monday()
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT email, full_name, years_experience, last_sent,
+                      expected_location, current_location
+               FROM subscribers WHERE COALESCE(status,'Active')='Active';""")
+        rows = [dict(r) for r in cur.fetchall()]
+        queued = 0
+        for r in rows:
+            email = str(r.get("email") or "").strip()
+            if not email or "@" not in email:
+                continue
+            pri = score_priority(r)
+            cur.execute(
+                """INSERT INTO email_queue (email, week, priority, status)
+                   VALUES (%s,%s,%s,'pending')
+                   ON CONFLICT (email, week) DO UPDATE SET priority=EXCLUDED.priority
+                   WHERE email_queue.status='pending';""",
+                (email, week, pri))
+            if cur.rowcount:
+                queued += 1
+        # mark unsubscribed/invalid as skipped so batch never picks them
+        cur.execute(
+            """UPDATE email_queue q SET status='skipped'
+               WHERE q.week=%s AND q.status='pending'
+                 AND NOT EXISTS (SELECT 1 FROM subscribers s
+                   WHERE lower(s.email)=lower(q.email)
+                     AND COALESCE(s.status,'Active')='Active');""",
+            (week,))
+    conn.commit()
+    return queued, len(rows)
+
+
+def fetch_batch(conn, week: str | None = None, limit: int = 280) -> list:
+    """Mon-Thu step: next pending batch ordered by priority. Returns subscriber dicts."""
+    week = week or week_monday()
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT s.* FROM email_queue q JOIN subscribers s ON lower(s.email)=lower(q.email)
+               WHERE q.week=%s AND q.status='pending'
+                 AND COALESCE(s.status,'Active')='Active'
+               ORDER BY q.priority DESC, s.created_at ASC LIMIT %s;""",
+            (week, limit))
+        rows = [dict(r) for r in cur.fetchall()]
+    return [db_row_to_subscriber(r) for r in rows]
+
+
+def mark_queued(conn, email: str, week: str, status: str, error: str = "") -> None:
+    with conn.cursor() as cur:
+        if status == "sent":
+            cur.execute(
+                """UPDATE email_queue SET status='sent', sent_at=NOW(), attempts=attempts+1
+                   WHERE email=%s AND week=%s;""",
+                (email, week))
+        else:
+            cur.execute(
+                """UPDATE email_queue SET status=%s, attempts=attempts+1, last_error=%s
+                   WHERE email=%s AND week=%s;""",
+                (status, error[:300], email, week))
+    conn.commit()
+
+
+def queue_stats(conn, week: str | None = None) -> dict:
+    week = week or week_monday()
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT status, COUNT(*) c FROM email_queue WHERE week=%s GROUP BY status;""",
+            (week,))
+        out = {}
+        for r in cur.fetchall():
+            d = dict(r)
+            out[str(d.get("status"))] = int(d.get("c", 0))
+        return out

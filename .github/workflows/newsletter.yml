@@ -2,15 +2,66 @@ name: Run Weekly Job Newsletter
 
 on:
   schedule:
-    # Every Sunday at 08:00 UTC
+    # Sunday: ingest fresh jobs + sync Tally + enqueue week's drip queue
     - cron: '0 8 * * 0'
+    # Mon-Thu: drain queue 280/day (Brevo 300/day buffer, $0 to ~1120/week)
+    - cron: '0 8 * * 1-4'
   workflow_dispatch: # manual trigger from GitHub UI
+    inputs:
+      mode:
+        description: 'enqueue (Sun) or batch (Mon-Thu)'
+        required: false
+        default: 'batch'
 
 permissions:
   contents: read
 
 jobs:
-  run-newsletter:
+  enqueue-sunday:
+    if: github.event.schedule == '0 8 * * 0' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'enqueue')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Enqueue week (ingest + sync + queue)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_LLM_MODEL: ${{ secrets.GEMINI_LLM_MODEL }}
+          GEMINI_EMBED_MODEL: ${{ secrets.GEMINI_EMBED_MODEL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
+          BREVO_SENDER_NAME: ${{ secrets.BREVO_SENDER_NAME }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          TALLY_API_KEY: ${{ secrets.TALLY_API_KEY }}
+          TALLY_FORM_ID: ${{ secrets.TALLY_FORM_ID }}
+          LOGO_LIGHT_URL: ${{ secrets.LOGO_LIGHT_URL }}
+          LOGO_DARK_URL: ${{ secrets.LOGO_DARK_URL }}
+          BANNER_URL: ${{ secrets.BANNER_URL }}
+          BRAND_WEBSITE: ${{ secrets.BRAND_WEBSITE }}
+          UNSUBSCRIBE_BASE_URL: ${{ secrets.UNSUBSCRIBE_BASE_URL }}
+          UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+          BATCH_LIMIT: '280'
+          THROTTLE_SECONDS: '4.5'
+          JOB_LOOKBACK_DAYS: '14'
+          DRY_RUN: 'false'
+        run: python enqueue_week.py --jobs-limit 30
+
+  send-drip:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 8 * * 1-4'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -25,7 +76,7 @@ jobs:
         run: pip install -r requirements.txt
 
       # DB-first pipeline (Tally + Supabase). No GCP / Sheets auth needed.
-      - name: Sync Tally -> Supabase, then run Newsletter Pipeline
+      - name: Send drip batch (280/day Brevo cap)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_LLM_MODEL: ${{ secrets.GEMINI_LLM_MODEL }}
@@ -48,10 +99,8 @@ jobs:
           UNSUBSCRIBE_BASE_URL: ${{ secrets.UNSUBSCRIBE_BASE_URL }}
           UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
           MAX_SUBSCRIBERS_PER_RUN: '100'
+          BATCH_LIMIT: '280'
           THROTTLE_SECONDS: '4.5'
           JOB_LOOKBACK_DAYS: '14'
           DRY_RUN: 'false'
-        run: |
-          python ingest_jobs.py --limit 30
-          python sync_tally.py
-          python main.py
+        run: python send_batch.py --limit 280
