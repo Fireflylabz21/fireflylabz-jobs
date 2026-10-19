@@ -1,0 +1,76 @@
+-- Supabase / Postgres schema for $0 job newsletter (pgvector 768-dim = gemini-embedding-001 truncated)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS citext;
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    company TEXT NOT NULL,
+    location TEXT,
+    work_style VARCHAR(50) CHECK (work_style IN ('Remote', 'Hybrid', 'Onsite')),
+    min_experience INT DEFAULT 0,
+    max_experience INT DEFAULT 30,
+    required_skills TEXT[] NOT NULL DEFAULT '{}',
+    description_text TEXT NOT NULL,
+    apply_url TEXT NOT NULL,
+    embedding VECTOR(768),
+    posted_at TIMESTAMPTZ DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_embedding
+    ON jobs USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS idx_jobs_posted ON jobs (posted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_active ON jobs (is_active) WHERE is_active = TRUE;
+
+-- Tally form https://tally.so/r/D4r5xp source of truth (replaces Google Sheets).
+-- Fields: Full Name | Email Address | Phone Number | Primary Skillsets
+-- | Secondary Skillsets | Years of Experience | Current Company
+-- | Current CTC | Notice Period | Current Location | Expected Location | Resume
+CREATE TABLE IF NOT EXISTS subscribers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name TEXT NOT NULL,
+    email CITEXT UNIQUE NOT NULL,
+    phone_number TEXT DEFAULT '',
+    primary_skillsets TEXT NOT NULL DEFAULT '',
+    secondary_skillsets TEXT DEFAULT '',
+    years_experience INT DEFAULT 0,
+    current_company TEXT DEFAULT '',
+    current_ctc TEXT DEFAULT '',
+    notice_period TEXT DEFAULT '',
+    current_location TEXT DEFAULT '',
+    expected_location TEXT DEFAULT '',
+    resume_url TEXT DEFAULT '',
+    tally_response_id TEXT UNIQUE,
+    status TEXT DEFAULT 'Active',
+    last_sent DATE,
+    notes TEXT DEFAULT '',
+    unsubscribed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_subscribers_status ON subscribers (status);
+CREATE INDEX IF NOT EXISTS idx_subscribers_last_sent ON subscribers (last_sent);
+
+-- Optional local cache of subscribers synced from Google Sheets (SRD 4.2)
+CREATE TABLE IF NOT EXISTS subscribers_cache (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    google_sheet_row INT NOT NULL,
+    sheet_subscriber_id VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    full_name VARCHAR(150),
+    primary_role VARCHAR(150),
+    years_experience INT,
+    skills TEXT[],
+    work_preference VARCHAR(50),
+    preferred_location VARCHAR(150),
+    profile_embedding VECTOR(768),
+    last_synced_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Unsubscribe support ($0): soft-delete via status='Unsubscribed' (audit + re-subscribe).
+-- Run once in Supabase SQL editor if table already exists:
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMPTZ;
+-- Free-tier hygiene: run weekly before pipeline
+-- DELETE FROM jobs WHERE posted_at < NOW() - INTERVAL '14 days';

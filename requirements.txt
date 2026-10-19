@@ -1,0 +1,9 @@
+psycopg2-binary>=2.9.9
+requests>=2.31.0
+gspread>=6.1.0
+google-auth>=2.29.0
+google-auth-oauthlib>=1.2.0
+google-generativeai>=0.5.0
+resend>=2.0.0
+python-dotenv>=1.0.0
+streamlit>=1.32.0  # only for hosted unsubscribe_page.py (Streamlit Cloud)

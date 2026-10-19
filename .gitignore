@@ -1,0 +1,32 @@
+# Environments
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets - NEVER commit
+.env
+.env.local
+*.json
+!package.json
+gcp_key.json
+oauth_client.json
+token.json
+service_account*.json
+.streamlit/secrets.toml
+
+# Local previews / test outputs
+preview_email.html
+emailer_patch_tmp.py
+fix_layout*.py
+test_*.py
+!test_sanitize.py
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
