@@ -104,7 +104,9 @@ jobs:
           JOB_LOOKBACK_DAYS: '14'
           DRY_RUN: 'false'
         run: python send_batch.py --limit 280
-daily-scraper:
+
+
+  daily-scraper:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 1 * * *'
     runs-on: ubuntu-latest
     steps:
