@@ -32,6 +32,7 @@ BRAND = {
     "muted": "#64748B",
     "dark_bg": "#0B0F1A",
     "dark_card": "#151D2E",
+    "iq9_url": "https://play.google.com/store/apps/details?id=com.iq9.assessment",
 }
 
 
@@ -152,6 +153,9 @@ def render_email_text(subscriber: Dict[str, Any], matched_jobs: List[Dict[str, A
             "",
         ]
     lines += ["- FireflyLabz | Weekly Job Alert | Reply to update preferences"]
+    lines += ["", "---",
+              "Upgrade your AI skillsets, prepare & clear AI job interviews with IQ9:",
+              "https://play.google.com/store/apps/details?id=com.iq9.assessment", ""]
     link = unsubscribe_url(subscriber.get("Email Address", ""))
     if link:
         lines += [f"Unsubscribe: {link}"]
@@ -260,6 +264,33 @@ def _job_card(job: Dict[str, Any], idx: int) -> str:
         </td></tr>"""
 
 
+def _iq9_banner() -> str:
+    """Bottom promo: IQ9 Android app. Outlook-safe navy/gold gradient-style block."""
+    url = BRAND["iq9_url"]
+    return (
+        "<tr><td style='padding:0 24px 16px 24px;'>"
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' "
+        "style='border-radius:12px;background:#0F172A;border:1px solid #D4AF37;'>"
+        "<tr><td style='padding:18px 20px;'>"
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0'><tr>"
+        "<td valign='middle' style='padding-right:12px;'>"
+        "<div style='font-size:11px;font-weight:700;letter-spacing:2px;color:#FDE68A;'>FIREFLYLABZ x IQ9</div>"
+        "<div style='font-size:16px;font-weight:800;color:#ffffff;line-height:1.3;margin:4px 0;'>"
+        "Upgrade your AI skillsets, prepare &amp; clear AI job interviews with IQ9</div>"
+        "<div style='font-size:12px;color:#CBD5E1;'>AI mock interviews · skill assessments · interview-ready in weeks</div>"
+        "</td>"
+        "<td valign='middle' align='right' width='140'>"
+        f"<a href='{url}' "
+        "style='display:inline-block;background:#F59E0B;color:#0F172A;font-weight:800;font-size:13px;"
+        "padding:12px 18px;border-radius:8px;text-decoration:none;white-space:nowrap;'>"
+        "Get the App &rarr;</a>"
+        "<div style='font-size:10px;color:#94A3B8;margin-top:6px;'>Free on Google Play</div>"
+        "</td>"
+        "</tr></table>"
+        "</td></tr></table></td></tr>"
+    )
+
+
 def _footer(to_email: str) -> str:
     link = unsubscribe_url(to_email)
     if link:
@@ -318,6 +349,7 @@ def render_email_html(subscriber: Dict[str, Any], matched_jobs: List[Dict[str, A
         "<tr><td style=\"padding:14px 18px;color:#475569;font-size:13px;\">"
         "Not quite right? Reply with updated skills / location and next week's picks re-rank."
         "</td></tr></table></td></tr>"
+        f"{_iq9_banner()}"
         f"{_footer(subscriber.get('Email Address', ''))}"
         "</table><p style=\"color:#94A3B8;font-size:11px;\">2026 Fireflylabz, Chennai</p>"
         "</td></tr></table></body></html>"

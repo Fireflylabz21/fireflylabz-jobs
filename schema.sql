@@ -88,3 +88,26 @@ CREATE TABLE IF NOT EXISTS email_queue (
 CREATE INDEX IF NOT EXISTS idx_queue_week_status ON email_queue (week, status, priority DESC);
 -- Free-tier hygiene: run weekly before pipeline
 -- DELETE FROM jobs WHERE posted_at < NOW() - INTERVAL '14 days';
+
+-- Scraper chunk run tracking ($0/month monitoring)
+-- Run: insert after each chunk completes; query to review progress
+CREATE TABLE IF NOT EXISTS scraper_chunk_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chunk_date DATE NOT NULL,           -- which day this chunk covered
+    day_of_week TEXT NOT NULL,          -- Monday, Tuesday, etc.
+    source TEXT NOT NULL,               -- remoteok,arbeitnow,naukri,linkedin
+    roles TEXT[] NOT NULL,              -- which role titles were searched
+    locations TEXT[] NOT NULL,          -- which cities were searched
+    experience_bands TEXT[] NOT NULL,   -- ENTRY,MID_JUNIOR,etc.
+    jobs_found INT DEFAULT 0,           -- total jobs retrieved from source
+    jobs_new INT DEFAULT 0,             -- new jobs upserted to DB
+    jobs_dup INT DEFAULT 0,             -- jobs already in DB (deduped)
+    runtime_seconds INT DEFAULT 0,      -- how long the scrape took
+    status TEXT DEFAULT 'completed' CHECK (status IN ('running','completed','failed')),
+    error_message TEXT DEFAULT '',
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_scraper_chunk_runs_date ON scraper_chunk_runs (chunk_date, day_of_week);
+CREATE INDEX IF NOT EXISTS idx_scraper_chunk_runs_status ON scraper_chunk_runs (status);
