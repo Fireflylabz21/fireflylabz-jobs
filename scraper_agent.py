@@ -267,6 +267,7 @@ class ScraperAgent:
                          "jobs_upserted": final_state.jobs_upserted,
                          "jobs_deduped": final_state.jobs_deduped,
                          "error": final_state.error}
+                    )
                 except Exception as e:
                     logger.error(f"Batch failed for {day_name}: {e}")
                     all_results.append({"day": day_name, "error": str(e)})
