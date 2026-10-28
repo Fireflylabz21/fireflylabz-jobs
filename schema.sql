@@ -1,3 +1,13 @@
+-- Supabase / Postgres schema for FireflyLabz Job Newsletter (pgvector 768-dim = gemini-embedding-001 truncated)
+-- Use this file to create/verify the scraper_chunk_runs table in Supabase SQL Editor (Database → SQL Editor)
+-- Run the "CREATE TABLE scraper_chunk_runs" section once if the table doesn't exist
+-- Query: SELECT * FROM scraper_chunk_runs ORDER BY started_at DESC LIMIT 5;
+
+-- Supabase / Postgres schema for FireflyLabz Job Newsletter (pgvector 768-dim = gemini-embedding-001 truncated)
+-- Use this file to create/verify the scraper_chunk_runs table in Supabase SQL Editor (Database → SQL Editor)
+-- Run the "CREATE TABLE scraper_chunk_runs" section once if the table doesn't exist
+-- Query: SELECT * FROM scraper_chunk_runs ORDER BY started_at DESC LIMIT 5;
+
 -- Supabase / Postgres schema for $0 job newsletter (pgvector 768-dim = gemini-embedding-001 truncated)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS vector;
