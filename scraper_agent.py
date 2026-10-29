@@ -314,7 +314,7 @@ def scrape_naukri_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                             "title": title,
                             "company": company,
                             "location": location,
-                            "work_style": "Onsite",
+                            "work_style": "Remote" if "remote" in title.lower() else "Onsite",
                             "min_experience": None,
                             "max_experience": None,
                             "required_skills": [role],
@@ -455,7 +455,7 @@ def scrape_remotive_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                 "work_style": "Remote",
                 "min_experience": None,
                 "max_experience": None,
-                "required_skills": [],
+                "required_skills": [role],
                 "description_text": (j.get("description") or "")[:5000],
                 "apply_url": url,
                 "posted_at": j.get("publication_date"),
@@ -496,7 +496,7 @@ def scrape_jobicy_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                 "work_style": "Remote",
                 "min_experience": None,
                 "max_experience": None,
-                "required_skills": [],
+                "required_skills": [role],
                 "description_text": (j.get("jobDescription") or "")[:5000],
                 "apply_url": url,
                 "posted_at": j.get("pubDate"),
@@ -534,7 +534,7 @@ def scrape_seek_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://www.seek.com.au" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "APAC"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "APAC"})
                 except Exception:
                     continue
         seen = set(); uniq = []
@@ -574,7 +574,7 @@ def scrape_instahyre_chunk(roles: List[str], locations: List[str]) -> List[Dict]
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://www.instahyre.com" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "India"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "India"})
                 except Exception:
                     continue
         seen = set(); uniq = []
@@ -614,7 +614,7 @@ def scrape_bayt_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://www.bayt.com" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "MEA"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "MEA"})
                 except Exception:
                     continue
         seen = set(); uniq = []
@@ -654,7 +654,7 @@ def scrape_builtin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://builtin.com" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "US"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "US"})
                 except Exception:
                     continue
         seen = set(); uniq = []
