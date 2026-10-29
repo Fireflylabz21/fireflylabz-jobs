@@ -1,0 +1,41 @@
+name: Scrape Jobs (Independent Cron)
+
+on:
+  schedule:
+    # Daily: populate jobs table for the next day's matching/sends
+    - cron: '0 1 * * *'
+  workflow_dispatch: # manual trigger from GitHub UI
+
+concurrency:
+  group: scrape-jobs
+  cancel-in-progress: false
+
+permissions:
+
+jobs:
+  scrape-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Scraper Agent (today's chunk)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_FALLBACK: ${{ secrets.GEMINI_API_KEY_FALLBACK }}
+          GEMINI_LLM_MODEL: ${{ secrets.GEMINI_LLM_MODEL }}
+          GEMINI_EMBED_MODEL: ${{ secrets.GEMINI_EMBED_MODEL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          THROTTLE_SECONDS: '4.5'
+          DRY_RUN: 'false'
+        run: python scraper_agent.py

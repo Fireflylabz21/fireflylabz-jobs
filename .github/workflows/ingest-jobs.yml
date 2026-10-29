@@ -1,0 +1,61 @@
+name: Ingest Jobs (Independent Cron)
+
+on:
+  workflow_run:
+    workflows: ["Scrape Jobs (Independent Cron)"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      scrape_first:
+        description: 'Run scraper once before ingest'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: ingest-jobs
+  cancel-in-progress: false
+
+permissions:
+
+jobs:
+  ingest-jobs:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Ingest Jobs Agent (no per-subscriber scraping)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_FALLBACK: ${{ secrets.GEMINI_API_KEY_FALLBACK }}
+          GEMINI_LLM_MODEL: ${{ secrets.GEMINI_LLM_MODEL }}
+          GEMINI_EMBED_MODEL: ${{ secrets.GEMINI_EMBED_MODEL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
+          BREVO_SENDER_NAME: ${{ secrets.BREVO_SENDER_NAME }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          MAX_SUBSCRIBERS_PER_RUN: '100'
+          THROTTLE_SECONDS: '4.5'
+          JOB_LOOKBACK_DAYS: '14'
+          DRY_RUN: 'false'
+        run: |
+          if [ "${{ github.event.inputs.scrape_first }}" = "true" ]; then
+            python ingest_jobs_agent.py --scrape-first
+          else
+            python ingest_jobs_agent.py
+          fi

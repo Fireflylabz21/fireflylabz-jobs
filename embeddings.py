@@ -1,18 +1,26 @@
 """Gemini embeddings (gemini-embedding-001, 3072-dim, free tier)."""
 import google.generativeai as genai
 from typing import Optional
-from config import GEMINI_API_KEY, GEMINI_EMBED_MODEL
+from config import GEMINI_API_KEY, GEMINI_API_KEY_FALLBACK, GEMINI_EMBED_MODEL
 
-_configured = False
+_configured_key = None
 
 
 def _ensure_configured():
-    global _configured
-    if not _configured:
-        if not GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY is not set.")
-        genai.configure(api_key=GEMINI_API_KEY)
-        _configured = True
+    global _configured_key
+    if _configured_key is not None:
+        genai.configure(api_key=_configured_key)
+        return
+    for key in (GEMINI_API_KEY, GEMINI_API_KEY_FALLBACK):
+        if key:
+            try:
+                genai.configure(api_key=key)
+                genai.embed_content(model=GEMINI_EMBED_MODEL, content="probe", output_dimensionality=768, task_type="retrieval_document")
+                _configured_key = key
+                return
+            except Exception:
+                continue
+    raise ValueError("No valid GEMINI API key for embeddings.")
 
 
 def generate_embedding(text: str) -> list:

@@ -8,8 +8,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY_FALLBACK = os.getenv("GEMINI_API_KEY_FALLBACK", "")
 GEMINI_LLM_MODEL = os.getenv("GEMINI_LLM_MODEL", "models/gemini-flash-latest")
 GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "models/gemini-embedding-001")
+
+# Optional OpenRouter / DeepSeek fallbacks for LLM ranking
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 # Primary: full Postgres URI (psycopg2). Alternate: SUPABASE_URL + SUPABASE_KEY (supabase-py).
 UNSUBSCRIBE_BASE_URL = os.getenv("UNSUBSCRIBE_BASE_URL", "")
 UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET", "")

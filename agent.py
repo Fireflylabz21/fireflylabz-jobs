@@ -5,17 +5,9 @@
 """
 import json
 from typing import Any, Dict, List
-import google.generativeai as genai
-from config import GEMINI_API_KEY, GEMINI_LLM_MODEL
+from llm_client import generate_text
 
-_configured = False
-
-
-def _ensure():
-    global _configured
-    if not _configured:
-        genai.configure(api_key=GEMINI_API_KEY)
-        _configured = True
+_configured = True  # kept for compat; generation uses llm_client
 
 
 def _anonymized_profile(subscriber: Dict[str, Any]) -> Dict[str, Any]:
@@ -51,9 +43,6 @@ def evaluate_and_rank_jobs(subscriber: Dict[str, Any],
                            candidate_jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not candidate_jobs:
         return []
-    _ensure()
-    model = genai.GenerativeModel(GEMINI_LLM_MODEL)
-
     prompt = f"""
 You are an expert career counselor. Match the anonymized candidate to jobs.
 
@@ -73,9 +62,10 @@ Return ONLY a JSON array:
    "apply_url": "<url>", "match_rationale": "<1-2 sentences>"}}]
 """
     try:
-        resp = model.generate_content(
-            prompt, generation_config={"response_mime_type": "application/json"})
-        data = json.loads(resp.text)
+        text = generate_text(prompt, json_mode=True)
+        if not text:
+            raise RuntimeError("LLM returned no text")
+        data = json.loads(text)
         # validate shape + enrich with candidate metadata for template (location/skills/exp)
         by_id = {str(j.get("id")): j for j in candidate_jobs}
         clean = []

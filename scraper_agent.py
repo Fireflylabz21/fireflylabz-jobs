@@ -426,7 +426,89 @@ def scrape_linkedin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
 """LangGraph nodes."""
 
 
-def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
+def scrape_remotive_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape Remotive (free remote jobs API) and filter by roles."""
+    jobs = []
+    try:
+        import requests
+        logger.info(f"Remotive: fetching remote jobs for {len(roles)} roles")
+        resp = requests.get("https://remotive.com/api/remote-jobs", timeout=20)
+        if resp.status_code != 200:
+            return jobs
+        data = resp.json().get("jobs", [])
+        role_l = [r.lower() for r in roles]
+        for j in data:
+            title = (j.get("title") or "").strip()
+            if not title:
+                continue
+            if not any(r.split()[0] in title.lower() for r in role_l):
+                continue
+            company = j.get("company_name", "")
+            location = j.get("candidate_required_location", "") or "Remote"
+            url = j.get("url", "")
+            if not url:
+                continue
+            jobs.append({
+                "title": title,
+                "company": company,
+                "location": location,
+                "work_style": "Remote",
+                "min_experience": None,
+                "max_experience": None,
+                "required_skills": [],
+                "description_text": (j.get("description") or "")[:5000],
+                "apply_url": url,
+                "posted_at": j.get("publication_date"),
+                "region": "US",
+            })
+        logger.info(f"Remotive: {len(jobs)} matching jobs")
+    except Exception as e:
+        logger.warning(f"Remotive scrape failed: {e}")
+    return jobs
+
+
+def scrape_jobicy_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape Jobicy (free remote jobs API) and filter by roles."""
+    jobs = []
+    try:
+        import requests
+        logger.info(f"Jobicy: fetching remote jobs for {len(roles)} roles")
+        resp = requests.get("https://jobicy.com/api/v2/remote-jobs?count=50", timeout=20)
+        if resp.status_code != 200:
+            return jobs
+        data = resp.json().get("jobs", [])
+        role_l = [r.lower() for r in roles]
+        for j in data:
+            title = (j.get("jobTitle") or "").strip()
+            if not title:
+                continue
+            if not any(r.split()[0] in title.lower() for r in role_l):
+                continue
+            company = j.get("companyName", "")
+            location = j.get("jobGeo", "") or "Remote"
+            url = j.get("url", "")
+            if not url:
+                continue
+            jobs.append({
+                "title": title,
+                "company": company,
+                "location": location,
+                "work_style": "Remote",
+                "min_experience": None,
+                "max_experience": None,
+                "required_skills": [],
+                "description_text": (j.get("jobDescription") or "")[:5000],
+                "apply_url": url,
+                "posted_at": j.get("pubDate"),
+                "region": "US",
+            })
+        logger.info(f"Jobicy: {len(jobs)} matching jobs")
+    except Exception as e:
+        logger.warning(f"Jobicy scrape failed: {e}")
+    return jobs
+
+
+def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:"
     """LangGraph node: scrape one chunk of jobs."""
     day = state.day_of_week
     chunks = get_today_chunks()
@@ -458,6 +540,10 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     all_jobs.extend(naukri_jobs)
     linkedin_jobs = scrape_linkedin_chunk(roles, locations)
     all_jobs.extend(linkedin_jobs)
+    remotive_jobs = scrape_remotive_chunk(roles, locations)
+    all_jobs.extend(remotive_jobs)
+    jobicy_jobs = scrape_jobicy_chunk(roles, locations)
+    all_jobs.extend(jobicy_jobs)
 
     new_jobs, deduped = deduplicate_and_upsert(all_jobs)
 
@@ -525,7 +611,7 @@ class ScraperAgent:
             chunks = get_today_chunks()
             self.state.chunks_completed = len(chunks) if chunks else 0
             self.state.jobs_found_total = sum(
-                len(scrape_remoteok_chunk(r, l) + scrape_arbeitnow_chunk(r, l))
+                len(scrape_remoteok_chunk(r, l) + scrape_arbeitnow_chunk(r, l) + scrape_remotive_chunk(r, l) + scrape_jobicy_chunk(r, l))
                 for r, l, _, _ in chunks
             )
             return {

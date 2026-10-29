@@ -106,34 +106,4 @@ jobs:
         run: python send_batch.py --limit 280
 
 
-  daily-scraper:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 1 * * *'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run Daily Scraper + Modified Ingest Agent
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_LLM_MODEL: ${{ secrets.GEMINI_LLM_MODEL }}
-          GEMINI_EMBED_MODEL: ${{ secrets.GEMINI_EMBED_MODEL }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
-          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
-          BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
-          BREVO_SENDER_NAME: ${{ secrets.BREVO_SENDER_NAME }}
-          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-          DRY_RUN: 'false'
-        run: |
-          python -c 'import ingest_jobs_agent; result = ingest_jobs_agent.run_ingest_jobs_agent(); print(f"IngestJobsAgent result: {result}")'

@@ -28,10 +28,9 @@ from matcher import search_matching_jobs
 from agent import evaluate_and_rank_jobs
 from emailer import send_newsletter_email
 from config import DRY_RUN, MAX_SUBSCRIBERS_PER_RUN, THROTTLE_SECONDS, JOB_LOOKBACK_DAYS, EMAIL_PROVIDER
-from scraper_agent import ScraperAgent
 
 
-def run_ingest_jobs_agent():
+def run_ingest_jobs_agent(scrape_first: bool = False):
     """Run the modified IngestJobsAgent.
 
     For each subscriber:
@@ -63,6 +62,31 @@ def run_ingest_jobs_agent():
     processed = sent = no_jobs = failed = 0
     triggered_scraper = 0
 
+    if scrape_first:
+        print("       [scrape-first] running scraper once globally before matching...")
+        try:
+            from scraper_agent import ScraperAgent
+            scraper = ScraperAgent(dry_run=False)
+            scraper_stats = scraper.run()
+            triggered_scraper = 1
+            print(f"       scraper done: {scraper_stats}")
+        except Exception as e:
+            print(f"       [scrape-first] scraper failed: {e}")
+
+    # Dependency guard: ingest relies on scraper having populated jobs table.
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS c FROM jobs WHERE is_active = TRUE;")
+            job_count = int(cur.fetchone()["c"])
+    except Exception as e:
+        job_count = -1
+        print(f"       [warn] could not count jobs: {e}")
+    print(f"       jobs in DB (active): {job_count}")
+    if job_count == 0 and not scrape_first:
+        print("       [abort] no jobs in DB yet - run scraper cron first. Exiting.")
+        conn.close()
+        return {"processed": 0, "sent": 0, "no_jobs": 0, "failed": 0, "triggered_scraper": triggered_scraper}
+
     for sub in batch:
         email = sub.get("Email Address", "")
         name = sub.get("Full Name", "")
@@ -92,39 +116,10 @@ def run_ingest_jobs_agent():
                     raise RuntimeError("email delivery failed after retries")
 
             else:
-                print("       no relevant jobs in DB - triggering scraper...")
-                triggered_scraper += 1
-
-                scraper = ScraperAgent(dry_run=True)
-                scraper_stats = scraper.run()
-
-                print(f"       Scraper found {scraper_stats['jobs_found']} new jobs")
-                print("       Re-querying DB for newly scraped jobs...")
-
-                candidates = search_matching_jobs(conn, sub, limit=15)
-                print(f"       re-query vector hits: {len(candidates)}")
-
-                if candidates:
-                    selected = evaluate_and_rank_jobs(sub, candidates)
-                    if selected:
-                        ok = send_newsletter_email(sub, selected)
-                        if ok:
-                            if not DRY_RUN:
-                                update_subscriber_writeback(conn, email, today_str, f"Sent ({len(selected)} jobs matched from scraper)")
-                            sent += 1
-                            print("       sent via email (scraper-sourced)")
-                        else:
-                            raise RuntimeError("email delivery failed after retries")
-                    else:
-                        if not DRY_RUN:
-                            update_subscriber_writeback(conn, email, sub.get("Last Newsletter Sent") or None, "No relevant jobs found this week (even after scraper)")
-                        no_jobs += 1
-                        print("       no relevant jobs even after scraper")
-                else:
-                    if not DRY_RUN:
-                        update_subscriber_writeback(conn, email, sub.get("Last Newsletter Sent") or None, "No relevant jobs found this week")
-                    no_jobs += 1
-                    print("       no relevant jobs even after scraper re-query")
+                if not DRY_RUN:
+                    update_subscriber_writeback(conn, email, sub.get("Last Newsletter Sent") or None, "No relevant jobs found this week")
+                no_jobs += 1
+                print("       no relevant jobs in DB (scraper runs separately via cron)")
 
             processed += 1
             time.sleep(THROTTLE_SECONDS)
@@ -174,8 +169,8 @@ Examples:
                         help="Dry run - no emails, no DB writes")
     parser.add_argument("--limit", type=int, default=MAX_SUBSCRIBERS_PER_RUN,
                         help=f"Max subscribers to process (default {MAX_SUBSCRIBERS_PER_RUN})")
-    parser.add_argument("--check-only", action="store_true",
-                        help="Only check matching, no sends")
+    parser.add_argument("--scrape-first", action="store_true",
+                        help="Run scraper once globally before matching (manual/ad-hoc)")
     args = parser.parse_args()
 
     missing = []
@@ -189,7 +184,7 @@ Examples:
     print(f"DRY_RUN={DRY_RUN}")
     print(f"SOURCE=supabase.subscribers")
 
-    result = run_ingest_jobs_agent()
+    result = run_ingest_jobs_agent(scrape_first=args.scrape_first)
     print(f"\nResult: {result}")
 
 
