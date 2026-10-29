@@ -1,5 +1,6 @@
 """Gemini embeddings (gemini-embedding-001, 3072-dim, free tier)."""
 import google.generativeai as genai
+from typing import Optional
 from config import GEMINI_API_KEY, GEMINI_EMBED_MODEL
 
 _configured = False
@@ -28,6 +29,21 @@ def generate_embedding(text: str) -> list:
     )
     emb = resp["embedding"] if isinstance(resp, dict) else resp.embedding
     return list(emb)
+
+
+class EmbeddingResult:
+    """Wrapper so callers can use emb.embedding (like google.generativeai types)."""
+    def __init__(self, embedding_list: list):
+        self.embedding = embedding_list
+
+
+def get_gemini_embedding(text: str) -> Optional[EmbeddingResult]:
+    """Return an EmbeddingResult (with .embedding attr) or None on failure."""
+    try:
+        emb = generate_embedding(text)
+        return EmbeddingResult(emb)
+    except Exception:
+        return None
 
 
 def profile_text_for(subscriber: dict) -> str:

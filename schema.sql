@@ -34,6 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_embedding
     WITH (m = 16, ef_construction = 64);
 CREATE INDEX IF NOT EXISTS idx_jobs_posted ON jobs (posted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_active ON jobs (is_active) WHERE is_active = TRUE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_apply_url_unique ON jobs (apply_url);
 
 -- Tally form https://tally.so/r/D4r5xp source of truth (replaces Google Sheets).
 -- Fields: Full Name | Email Address | Phone Number | Primary Skillsets

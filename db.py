@@ -1,7 +1,7 @@
 """Supabase / PostgreSQL + pgvector helpers (768-dim for text-embedding-004)."""
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from sheets_client import normalize_skills
 from config import SUPABASE_DB_URL
 
@@ -204,3 +204,66 @@ def queue_stats(conn, week: str | None = None) -> dict:
             d = dict(r)
             out[str(d.get("status"))] = int(d.get("c", 0))
         return out
+
+
+def find_existing_job(cur, apply_url: str = None, conn=None) -> Optional[Dict]:
+    """Check if a job with the given apply_url already exists.
+    Accepts either (cur, apply_url=...) or (conn, apply_url=...).
+    Returns the row dict if found, else None.
+    """
+    if cur is None and conn is not None:
+        cur = conn.cursor()
+    if not apply_url:
+        return None
+    cur.execute("SELECT * FROM jobs WHERE apply_url=%s;", (apply_url,))
+    row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def upsert_job(
+    cur,
+    title: str = "",
+    company: str = "",
+    location: str = "",
+    work_style: str = "",
+    min_experience: int = 0,
+    max_experience: int = 30,
+    required_skills: list = None,
+    description_text: str = "",
+    apply_url: str = "",
+    embedding: list = None,
+    posted_at: str = None,
+    is_active: bool = True,
+    conn=None,
+) -> None:
+    """Insert a new job or update if apply_url already exists (dedup-by-apply_url).
+
+    Usage in scraper_agent.py: upsert_job(cur, title=..., apply_url=..., ...)
+    Also supports upsert_job(conn, title=..., apply_url=..., ...) by passing conn.
+    """
+    if conn is not None and cur is None and isinstance(conn, type(None)):
+        return
+    if cur is None and conn is not None:
+        cur = conn.cursor()
+    skills = required_skills or []
+    if not apply_url:
+        return
+    emb_val = None
+    if embedding is not None:
+        emb_val = list(embedding) if not isinstance(embedding, list) else embedding
+    cur.execute(
+        """INSERT INTO jobs
+             (title, company, location, work_style, min_experience,
+              max_experience, required_skills, description_text, apply_url,
+              embedding, posted_at, is_active)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, %s, %s)
+           ON CONFLICT (apply_url) DO UPDATE
+             SET title = EXCLUDED.title,
+                 company = EXCLUDED.company,
+                 location = EXCLUDED.location,
+                 description_text = EXCLUDED.description_text,
+                 required_skills = EXCLUDED.required_skills,
+                 is_active = TRUE;""",
+        (title, company, location, work_style,
+         min_experience, max_experience, skills, description_text,
+         apply_url, emb_val, posted_at, is_active))

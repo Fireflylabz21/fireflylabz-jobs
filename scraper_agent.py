@@ -10,11 +10,14 @@ import time
 import datetime
 import random
 import logging
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 
 import numpy as np
 from langgraph.graph import StateGraph, START, END
-from langchain.schema import HumanMessage, SystemMessage
+try:
+    from langchain_core.messages import HumanMessage, SystemMessage
+except ImportError:
+    from langchain.schema import HumanMessage, SystemMessage
 
 from chunk_dispatcher import get_today_chunks, WEEKLY_SCHEDULE
 from db import get_db_connection, upsert_job, find_existing_job
@@ -22,6 +25,7 @@ from embeddings import get_gemini_embedding
 from config import DRY_RUN, GEMINI_API_KEY, GEMINI_EMBED_MODEL, THROTTLE_SECONDS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 """ScraperAgentState - State for the LangGraph scraper orchestrator."""
 import pydantic
 
@@ -481,6 +485,7 @@ class ScraperAgent:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.graph = build_scraper_graph()
+        self.state = ScraperAgentState()
 
     def run(self) -> Dict[str, Any]:
         """Run the scraper agent for today's batch."""
