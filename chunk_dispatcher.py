@@ -6,7 +6,8 @@
   for the ScraperAgent. Each chunk is a (roles, locations,
   experience_bands, region) tuple that gets processed sequentially.
 
-  Multi-region coverage: US, UK, APAC, MEA
+  Every day searches ALL target locations across all regions.
+  Roles and experience bands vary by day to ensure complete coverage.
   Latest jobs only: posted within last 48 hours
 
   Usage:
@@ -19,6 +20,37 @@
 import datetime
 from typing import List, Tuple, Dict
 
+# ── All Target Locations ───────────────────────────────────
+# Daily scraping covers every location listed below.
+# If a role/location has no jobs, the scraper skips and moves on.
+
+DAILY_LOCATIONS: List[str] = [
+    # US
+    "San Francisco",        # Bay Area
+    "San Jose",
+    "Seattle",
+    "New York City",
+    "Boston",
+    "Washington D.C.",
+    # Canada
+    "Toronto",
+    "Vancouver",
+    # UK / Europe
+    "London",
+    "Zurich",
+    "Berlin",
+    "Munich",
+    "Amsterdam",
+    "Dublin",
+    # APAC
+    "Bengaluru",
+    "Hyderabad",
+    "Singapore",
+    "Tokyo",
+    # MEA
+    "Dubai",
+]
+
 # ── Weekly Chunk Schedule ──────────────────────────────────
 # Each entry: (day_name, roles, locations, experience_bands, region)
 # Roles are job titles to target, locations are cities,
@@ -28,46 +60,53 @@ from typing import List, Tuple, Dict
 
 WEEKLY_SCHEDULE: Dict[str, Tuple[List[str], List[str], List[str], str]] = {
     "Monday": (
-        ["AI Engineer", "ML Engineer", "Forward Deployed Engineer", "GenAI Engineer"],
-        ["New York", "San Francisco", "Austin", "Seattle", "Remote"],
-        ["ENTRY", "MID_JUNIOR"],
-        "US",
+        ["AI Engineer", "ML Engineer", "Forward Deployed Engineer", "GenAI Engineer",
+         "Data Scientist", "Machine Learning Researcher"],
+        DAILY_LOCATIONS,
+        ["ENTRY", "MID_JUNIOR", "MID_SENIOR", "SENIOR"],
+        "All",
     ),
     "Tuesday": (
-        ["Backend Engineer", "Frontend Engineer", "DevOps Engineer", "Full Stack Developer"],
-        ["London", "Manchester", "Edinburgh", "Remote"],
-        ["MID_JUNIOR", "MID_SENIOR"],
-        "UK",
+        ["Backend Engineer", "Frontend Engineer", "DevOps Engineer", "Full Stack Developer",
+         "Platform Engineer", "Site Reliability Engineer"],
+        DAILY_LOCATIONS,
+        ["ENTRY", "MID_JUNIOR", "MID_SENIOR", "SENIOR"],
+        "All",
     ),
     "Wednesday": (
-        ["Data Engineer", "Data Scientist", "Android Engineer", "iOS Engineer", "QA Engineer"],
-        ["Bangalore", "Hyderabad", "Chennai", "Pune", "Remote"],
-        ["MID_JUNIOR", "MID_SENIOR", "SENIOR"],
-        "APAC",
+        ["Data Engineer", "Android Engineer", "iOS Engineer", "QA Engineer",
+         "Cloud Engineer", "Security Engineer"],
+        DAILY_LOCATIONS,
+        ["ENTRY", "MID_JUNIOR", "MID_SENIOR", "SENIOR", "STAFF_LEAD"],
+        "All",
     ),
     "Thursday": (
-        ["Cloud Engineer", "Security Engineer", "Platform Engineer", "Site Reliability Engineer"],
-        ["Dubai", "Abu Dhabi", "Riyadh", "Remote"],
-        ["MID_SENIOR", "SENIOR", "STAFF_LEAD"],
-        "MEA",
+        ["Product Manager", "Product Engineer", "Technical Program Manager",
+         "UX Designer", "DevRel Associate"],
+        DAILY_LOCATIONS,
+        ["ENTRY", "MID_JUNIOR", "MID_SENIOR", "SENIOR"],
+        "All",
     ),
     "Friday": (
-        ["Product Engineer", "Technical Writer", "DevRel Associate", "UX Designer"],
-        ["New York", "London", "Bangalore", "Dubai", "Remote"],
-        ["ENTRY", "MID_JUNIOR"],
+        ["Technical Writer", "Research Engineer", "Forward Deployed Engineer",
+         "Infrastructure Engineer", "Systems Engineer"],
+        DAILY_LOCATIONS,
+        ["ENTRY", "MID_JUNIOR", "MID_SENIOR", "SENIOR", "STAFF_LEAD"],
         "All",
     ),
     "Saturday": (
-        ["Junior Developer", "Intern", "Graduate Trainee", "Entry Level Developer"],
-        ["New York", "London", "Bangalore", "Dubai", "Remote"],
-        ["ENTRY"],
+        ["Junior Developer", "Intern", "Graduate Trainee", "Entry Level Developer",
+         "Associate Engineer", "Trainee Engineer"],
+        DAILY_LOCATIONS,
+        ["ENTRY", "MID_JUNIOR"],
         "All",
     ),
     "Sunday": (
         # Long-tail / refresh top roles across all regions
-        ["Product Manager", "Technical Writer", "QA Engineer", "DevRel Associate"],
-        ["New York", "London", "Bangalore", "Dubai", "Remote"],
-        ["ENTRY", "MID_JUNIOR"],
+        ["Product Manager", "Technical Writer", "QA Engineer", "DevRel Associate",
+         "Data Scientist", "Cloud Architect"],
+        DAILY_LOCATIONS,
+        ["ENTRY", "MID_JUNIOR", "MID_SENIOR", "SENIOR", "STAFF_LEAD"],
         "All",
     ),
 }

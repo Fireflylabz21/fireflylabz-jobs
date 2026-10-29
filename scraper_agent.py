@@ -41,15 +41,125 @@ def get_today_chunk() -> Optional[Tuple[List[str], List[str], List[str]]]:
     return chunks[0] if chunks else None
 
 
-"""Scraper sources - stubbed for now; implement in scraper_sources.py later."""
+"""Scraper sources - real implementations with fallback stubs."""
 def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
-    logger.info(f"RemoteOK chunk: {len(roles)} roles x {len(locations)} locations")
-    return []
+    """Scrape RemoteOK API for jobs matching roles/locations.
+    Returns list of job dicts. If no jobs found, returns empty list.
+    """
+    jobs = []
+    try:
+        import requests
+        logger.info(f"RemoteOK chunk: {len(roles)} roles x {len(locations)} locations")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+            "Accept": "application/json",
+        }
+        resp = requests.get("https://remoteok.com/api", headers=headers, timeout=15)
+        if resp.status_code != 200:
+            logger.warning(f"RemoteOK API returned status {resp.status_code}")
+            return jobs
+        data = resp.json()
+        # RemoteOK returns a list of dicts; last element is often a "legal" key
+        if isinstance(data, dict) and "legal" in data:
+            actual_jobs = [d for d in data if isinstance(d, dict) and d != "legal"]
+        elif isinstance(data, list):
+            actual_jobs = [d for d in data if isinstance(d, dict)]
+        else:
+            actual_jobs = []
+        for job in actual_jobs:
+            title = job.get("position", "").lower()
+            loc = job.get("location", "").lower()
+            # Match by role keyword and location keyword
+            role_match = any(
+                r.lower().replace(" ", "") in title.replace(" ", "")
+                or r.split()[0].lower() in title
+                for r in roles
+            )
+            loc_match = any(loc and l.lower() in loc for l in locations) if loc else False
+            if role_match and (loc_match or "remote" in loc):
+                apply_url = job.get("url", "")
+                if not apply_url:
+                    continue
+                jobs.append({
+                    "title": job.get("position", ""),
+                    "company": job.get("company", ""),
+                    "location": job.get("location", ""),
+                    "work_style": "Remote",
+                    "min_experience": None,
+                    "max_experience": None,
+                    "required_skills": job.get("tags", []),
+                    "description_text": job.get("description", "")[:500],
+                    "apply_url": apply_url,
+                    "posted_at": job.get("date", ""),
+                    "region": "Remote",
+                })
+        logger.info(f"RemoteOK: found {len(jobs)} matching jobs")
+    except ImportError:
+        logger.debug("requests not available for RemoteOK scraper")
+    except Exception as e:
+        logger.warning(f"RemoteOK scrape error: {e}")
+    return jobs
 
 
 def scrape_arbeitnow_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
-    logger.info(f"Arbeitnow chunk: {len(roles)} roles x {len(locations)} locations")
-    return []
+    """Scrape Arbeitnow API for jobs matching roles/locations.
+    Returns list of job dicts. If no jobs found, returns empty list.
+    """
+    jobs = []
+    try:
+        import requests
+        logger.info(f"Arbeitnow chunk: {len(roles)} roles x {len(locations)} locations")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        # Arbeitnow job board API - filters by location_type=remote for broad reach
+        url = "https://www.arbeitnow.com/api/job-board/"
+        resp = requests.get(url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            logger.warning(f"Arbeitnow API returned status {resp.status_code}")
+            return jobs
+        data = resp.json()
+        if not isinstance(data, list):
+            data = data.get("jobs", []) if isinstance(data, dict) else []
+        for job in data:
+            if not isinstance(job, dict):
+                continue
+            title = (job.get("title") or "").lower()
+            loc = (job.get("location") or "").lower()
+            # Match by role keyword and location keyword
+            role_match = any(
+                r.lower().replace(" ", "") in title.replace(" ", "")
+                or r.split()[0].lower() in title
+                for r in roles
+            )
+            loc_match = any(loc and l.lower() in loc for l in locations) if loc else False
+            if role_match and (loc_match or "remote" in loc):
+                apply_url = job.get("url", "") or job.get("apply_url", "")
+                if not apply_url:
+                    continue
+                jobs.append({
+                    "title": job.get("title", ""),
+                    "company": job.get("company", ""),
+                    "location": job.get("location", ""),
+                    "work_style": "Remote" if "remote" in loc else "Onsite",
+                    "min_experience": None,
+                    "max_experience": None,
+                    "required_skills": job.get("tags", []),
+                    "description_text": job.get("description", "")[:500],
+                    "apply_url": apply_url,
+                    "posted_at": job.get("created_at", ""),
+                    "region": "EU",
+                })
+        logger.info(f"Arbeitnow: found {len(jobs)} matching jobs")
+    except ImportError:
+        logger.debug("requests not available for Arbeitnow scraper")
+    except Exception as e:
+        logger.warning(f"Arbeitnow scrape error: {e}")
+    return jobs
 
 
 """DB helpers."""
@@ -122,69 +232,164 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
 """LangGraph nodes."""
 
 def scrape_naukri_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
-    """Scrape Naukri for given roles and locations (India/APAC region).
-    Returns list of job dicts with consistent field names including region."""
+    """Scrape Naukri via public search for given roles and locations (India/APAC).
+    Skips role/location combos that return no results.
+    Returns list of job dicts with consistent field names including region.
+    """
     jobs = []
     try:
         import requests
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        from bs4 import BeautifulSoup
+        logger.info(f"Naukri chunk: {len(roles)} roles x {len(locations)} locations")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://www.naukri.com/",
+        }
         for role in roles:
             for location in locations:
                 try:
                     url = f"https://www.naukri.com/{role.lower().replace(' ', '-')}-jobs-{location.lower().replace(' ', '-')}"
-                    resp = requests.get(url, headers=headers, timeout=15)
-                    if resp.status_code == 200:
-                        # Simplified - would use BeautifulSoup in production
+                    resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+                    if resp.status_code != 200:
+                        logger.debug(f"Naukri: {role}/{location} returned {resp.status_code}")
+                        continue
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    # Naukri uses various selectors; try common patterns
+                    job_cards = (
+                        soup.select("div[data-job-id]") or
+                        soup.select("article.jd-template") or
+                        soup.select("div.cj-job-card")
+                    )
+                    for card in job_cards:
+                        title_elem = card.select_one("a.title") or card.select_one("h2.title") or card.select_one("a")
+                        if not title_elem:
+                            continue
+                        title = title_elem.get_text(strip=True) or title_elem.get("title", "")
+                        link = title_elem.get("href", "")
+                        if link and not link.startswith("http"):
+                            link = "https://www.naukri.com" + link
+                        company_elem = card.select_one(".company, .comp-name") or card.select_one("a.company")
+                        company = company_elem.get_text(strip=True) if company_elem else ""
+                        if not link or link in [j["apply_url"] for j in jobs]:
+                            continue
+                        # Verify title contains role keyword
+                        if title and role.lower().split()[0] not in title.lower():
+                            continue
+                        date_elem = card.select_one(".f12, .date, .posted-on")
+                        posted_at = date_elem.get_text(strip=True) if date_elem else ""
                         jobs.append({
-                            "title": f"{role} at {location}",
-                            "company": "Naukri Job",
+                            "title": title,
+                            "company": company,
                             "location": location,
-                            "work_style": "on-site",
+                            "work_style": "Onsite",
                             "min_experience": None,
                             "max_experience": None,
                             "required_skills": [role],
-                            "description_text": f"{role} position at {location}",
-                            "apply_url": url,
-                            "posted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "description_text": f"{role} position at {location} via Naukri",
+                            "apply_url": link,
+                            "posted_at": posted_at,
                             "region": "APAC",
                         })
                     time.sleep(random.uniform(0.5, 2.0))
                 except Exception as e:
                     logger.warning(f"Naukri scrape error for {role}/{location}: {e}")
     except ImportError:
-        logger.debug("requests not available for Naukri scraper")
+        logger.debug("requests/BeautifulSoup not available for Naukri scraper")
     return jobs
 
 
 def scrape_linkedin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
-    """Scrape LinkedIn for given roles and locations (US/UK/MEA region).
-    Returns list of job dicts with consistent field names including region."""
+    """Scrape LinkedIn Jobs for given roles and locations (US/UK/MEA/EU).
+    Uses LinkedIn's public job search HTML. Skips role/location combos
+    with no results.
+    Returns list of job dicts with consistent field names including region.
+    """
     jobs = []
     try:
         import requests
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        from bs4 import BeautifulSoup
+        logger.info(f"LinkedIn chunk: {len(roles)} roles x {len(locations)} locations")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://www.linkedin.com/",
+        }
         for role in roles:
             for location in locations:
                 try:
-                    # Simplified LinkedIn scrape placeholder
-                    jobs.append({
-                        "title": f"{role}",
-                        "company": "LinkedIn Job",
-                        "location": location,
-                        "work_style": "remote",
-                        "min_experience": None,
-                        "max_experience": None,
-                        "required_skills": [role],
-                        "description_text": f"{role} position at {location}",
-                        "apply_url": f"https://www.linkedin.com/jobs/search/?keywords={role}&location={location}",
-                        "posted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                        "region": "US",
-                    })
+                    search_url = (
+                        "https://www.linkedin.com/jobs/search/"
+                        f"?keywords={role}&location={location}"
+                        "&position=1&pageNum=0"
+                    )
+                    resp = requests.get(search_url, headers=headers, timeout=15)
+                    if resp.status_code != 200:
+                        logger.debug(f"LinkedIn: {role}/{location} returned {resp.status_code}")
+                        continue
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    # LinkedIn job cards
+                    job_cards = (
+                        soup.select("div[data-job-id]") or
+                        soup.select("div.base-card") or
+                        soup.select("article.jobs-search-result")
+                    )
+                    for card in job_cards:
+                        title_elem = (
+                            card.select_one("a[data-control-name]") or
+                            card.select_one("h3.base-search-card__title") or
+                            card.select_one("span.visually-hidden") or
+                            card.select_one("a")
+                        )
+                        if not title_elem:
+                            continue
+                        title = title_elem.get_text(strip=True) or title_elem.get("aria-label", "")
+                        if not title:
+                            continue
+                        # Verify title contains role keyword
+                        if role.lower().split()[0] not in title.lower():
+                            continue
+                        link_elem = card.select_one("a")
+                        link = link_elem.get("href", "") if link_elem else ""
+                        if link and not link.startswith("http"):
+                            link = "https://www.linkedin.com" + link
+                        if not link or link in [j["apply_url"] for j in jobs]:
+                            continue
+                        company_elem = (
+                            card.select_one("h4.base-search-card__subtitle") or
+                            card.select_one("a[data-control-name] + .company")
+                        )
+                        company = company_elem.get_text(strip=True) if company_elem else ""
+                        # Region inference based on location
+                        region = "US"
+                        if location and any(c in location for c in ["London", "UK", "Berlin", "Zurich", "Dublin", "Munich"]):
+                            region = "UK"
+                        if location and any(c in location for c in ["Singapore", "Tokyo", "Bengaluru", "Hyderabad"]):
+                            region = "APAC"
+                        if location and "Dubai" in location:
+                            region = "MEA"
+                        jobs.append({
+                            "title": title,
+                            "company": company,
+                            "location": location,
+                            "work_style": "Remote",
+                            "min_experience": None,
+                            "max_experience": None,
+                            "required_skills": [role],
+                            "description_text": f"{role} position at {location} via LinkedIn",
+                            "apply_url": link,
+                            "posted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "region": region,
+                        })
                     time.sleep(random.uniform(0.5, 2.0))
                 except Exception as e:
                     logger.warning(f"LinkedIn scrape error for {role}/{location}: {e}")
     except ImportError:
-        logger.debug("requests not available for LinkedIn scraper")
+        logger.debug("requests/BeautifulSoup not available for LinkedIn scraper")
     return jobs
 
 
@@ -200,7 +405,7 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
         state.error = "No more chunks to scrape"
         return state
 
-    roles, locations, experience_bands = chunks[state.batch_index]
+    roles, locations, experience_bands, chunk_region = chunks[state.batch_index]
     logger.info(f"Scraper: Day={day}, Chunk {state.batch_index + 1}/{len(chunks)}")
     logger.info(f"  Roles: {', '.join(roles[:3])}...")
     logger.info(f"  Locations: {', '.join(locations)}")
@@ -218,7 +423,7 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     for j in arbetnow_jobs:
         j["region"] = j.get("region", "EU")
         j["posted_at"] = j.get("posted_at", cutoff.isoformat())
-        all_jobs.extend(arbeitnow_jobs)
+    all_jobs.extend(arbetnow_jobs)
     naukri_jobs = scrape_naukri_chunk(roles, locations)
     all_jobs.extend(naukri_jobs)
     linkedin_jobs = scrape_linkedin_chunk(roles, locations)
@@ -290,7 +495,7 @@ class ScraperAgent:
             self.state.chunks_completed = len(chunks) if chunks else 0
             self.state.jobs_found_total = sum(
                 len(scrape_remoteok_chunk(r, l) + scrape_arbeitnow_chunk(r, l))
-                for r, l, _ in chunks
+                for r, l, _, _ in chunks
             )
             return {
                 "dry_run": True,
