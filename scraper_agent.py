@@ -45,6 +45,32 @@ def get_today_chunk() -> Optional[Tuple[List[str], List[str], List[str]]]:
     return chunks[0] if chunks else None
 
 
+def clean_description(text: str, max_len: int = 500) -> str:
+    """Strip HTML tags and produce a clean summary of the job description.
+    
+    Args:
+        text: Raw description that may contain HTML markup.
+        max_len: Maximum output length in characters.
+    
+    Returns:
+        Clean, plain-text description truncated to max_len.
+    """
+    if not text:
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(text, "html.parser")
+        text = soup.get_text(separator=" ", strip=True)
+    except ImportError:
+        import re
+        text = re.sub(r"<[^>]+>", " ", text)
+    # Collapse whitespace
+    text = " ".join(text.split())
+    if len(text) > max_len:
+        text = text[:max_len].rsplit(" ", 1)[0]
+    return text
+
+
 """Scraper sources - real implementations with fallback stubs."""
 def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
     """Scrape RemoteOK API for jobs matching roles/locations.
@@ -93,7 +119,7 @@ def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                     "min_experience": None,
                     "max_experience": None,
                     "required_skills": job.get("tags", []),
-                    "description_text": job.get("description", "")[:500],
+                    "description_text": clean_description(job.get("description", ""), 500),
                     "apply_url": apply_url,
                     "posted_at": job.get("date", ""),
                     "region": "Remote",
@@ -153,7 +179,7 @@ def scrape_arbeitnow_chunk(roles: List[str], locations: List[str]) -> List[Dict]
                     "min_experience": None,
                     "max_experience": None,
                     "required_skills": job.get("tags", []),
-                    "description_text": job.get("description", "")[:500],
+                    "description_text": clean_description(job.get("description", ""), 500),
                     "apply_url": apply_url,
                     "posted_at": job.get("created_at", ""),
                     "region": "EU",
