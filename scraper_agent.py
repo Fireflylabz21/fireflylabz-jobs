@@ -511,14 +511,16 @@ class ScraperAgent:
 
         try:
             final_state = self.graph.invoke(self.state)
+            # LangGraph 1.x may return a dict instead of the state object
+            state_dict = final_state if isinstance(final_state, dict) else final_state.__dict__
             return {
                 "dry_run": False,
-                "day_of_week": final_state.day_of_week,
-                "chunks_completed": final_state.batch_index,
-                "jobs_found_total": final_state.jobs_found_total,
-                "jobs_upserted": final_state.jobs_upserted,
-                "jobs_deduped": final_state.jobs_deduped,
-                "error": final_state.error,
+                "day_of_week": state_dict.get("day_of_week"),
+                "chunks_completed": state_dict.get("batch_index"),
+                "jobs_found_total": state_dict.get("jobs_found_total"),
+                "jobs_upserted": state_dict.get("jobs_upserted"),
+                "jobs_deduped": state_dict.get("jobs_deduped"),
+                "error": state_dict.get("error"),
             }
         except Exception as e:
             logger.error(f"ScraperAgent run failed: {e}")
@@ -552,13 +554,15 @@ class ScraperAgent:
                 self.state.batch_index = 0
                 try:
                     final_state = self.graph.invoke(self.state)
+                    # LangGraph 1.x may return a dict instead of the state object
+                    state_dict = final_state if isinstance(final_state, dict) else final_state.__dict__
                     all_results.append(
                         {"day": day_name,
-                         "chunks_completed": final_state.batch_index,
-                         "jobs_found_total": final_state.jobs_found_total,
-                         "jobs_upserted": final_state.jobs_upserted,
-                         "jobs_deduped": final_state.jobs_deduped,
-                         "error": final_state.error}
+                         "chunks_completed": state_dict.get("batch_index", 0),
+                         "jobs_found_total": state_dict.get("jobs_found_total", 0),
+                         "jobs_upserted": state_dict.get("jobs_upserted", 0),
+                         "jobs_deduped": state_dict.get("jobs_deduped", 0),
+                         "error": state_dict.get("error")}
                     )
                 except Exception as e:
                     logger.error(f"Batch failed for {day_name}: {e}")
