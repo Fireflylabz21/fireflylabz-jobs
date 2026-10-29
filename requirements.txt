@@ -7,3 +7,11 @@ google-generativeai>=0.5.0
 resend>=2.0.0
 python-dotenv>=1.0.0
 streamlit>=1.32.0  # only for hosted unsubscribe_page.py (Streamlit Cloud)
+# ScraperAgent dependencies (needed by daily-scraper CI job)
+langgraph>=0.4.5,<1.0
+langchain>=0.2,<0.4
+pydantic>=2.7
+beautifulsoup4>=4.12
+numpy>=1.26,<3.0
+# langchain-google-genai and langchain-openai are needed by agent.py for Gemini Flash ranking
+# (if using LangChain-based prompts; otherwise raw google.generativeai is used)
