@@ -508,7 +508,7 @@ def scrape_jobicy_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
     return jobs
 
 
-def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:"
+def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     """LangGraph node: scrape one chunk of jobs."""
     day = state.day_of_week
     chunks = get_today_chunks()
