@@ -508,6 +508,166 @@ def scrape_jobicy_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
     return jobs
 
 
+def scrape_seek_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape Seek/JobStreet (APAC) search results for given roles."""
+    jobs = []
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        role_l = [r.lower() for r in roles]
+        apac_locs = [l for l in locations if any(k in l.lower() for k in ("singapore", "sydney", "melbourne", "auckland", "tokyo"))]
+        if not apac_locs:
+            apac_locs = ["Singapore"]
+        for role in roles[:3]:
+            for loc in apac_locs[:3]:
+                try:
+                    url = f"https://www.seek.com.au/jobs?keywords={requests.utils.quote(role)}&where={requests.utils.quote(loc)}"
+                    resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+                    if resp.status_code != 200:
+                        continue
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    for a in soup.find_all("a", href=True):
+                        title = a.get_text(" ", strip=True)
+                        href = a["href"]
+                        if not title or len(title) < 6 or "job" not in href.lower():
+                            continue
+                        if not any(r.split()[0] in title.lower() for r in role_l):
+                            continue
+                        full = href if href.startswith("http") else "https://www.seek.com.au" + href
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "APAC"})
+                except Exception:
+                    continue
+        seen = set(); uniq = []
+        for j in jobs:
+            if j["apply_url"] in seen: continue
+            seen.add(j["apply_url"]); uniq.append(j)
+        logger.info(f"Seek/JobStreet: {len(uniq)} matching jobs")
+        return uniq[:40]
+    except Exception as e:
+        logger.warning(f"Seek scrape failed: {e}")
+        return jobs
+
+
+def scrape_instahyre_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape Instahyre (India) search results for given roles."""
+    jobs = []
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        role_l = [r.lower() for r in roles]
+        india_locs = [l for l in locations if any(k in l.lower() for k in ("bengaluru", "hyderabad", "bangalore", "mumbai", "delhi", "pune", "chennai"))]
+        if not india_locs:
+            india_locs = ["Bengaluru"]
+        for role in roles[:3]:
+            for loc in india_locs[:2]:
+                try:
+                    url = f"https://www.instahyre.com/search-jobs/?q={requests.utils.quote(role)}&location={requests.utils.quote(loc)}"
+                    resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+                    if resp.status_code != 200:
+                        continue
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    for a in soup.find_all("a", href=True):
+                        title = a.get_text(" ", strip=True)
+                        href = a["href"]
+                        if not title or len(title) < 6 or "job" not in href.lower():
+                            continue
+                        if not any(r.split()[0] in title.lower() for r in role_l):
+                            continue
+                        full = href if href.startswith("http") else "https://www.instahyre.com" + href
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "India"})
+                except Exception:
+                    continue
+        seen = set(); uniq = []
+        for j in jobs:
+            if j["apply_url"] in seen: continue
+            seen.add(j["apply_url"]); uniq.append(j)
+        logger.info(f"Instahyre: {len(uniq)} matching jobs")
+        return uniq[:40]
+    except Exception as e:
+        logger.warning(f"Instahyre scrape failed: {e}")
+        return jobs
+
+
+def scrape_bayt_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape Bayt/GulfTalent (MEA) search results for given roles."""
+    jobs = []
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        role_l = [r.lower() for r in roles]
+        mea_locs = [l for l in locations if any(k in l.lower() for k in ("dubai", "abu dhabi", "riyadh", "doha"))]
+        if not mea_locs:
+            mea_locs = ["Dubai"]
+        for role in roles[:3]:
+            for loc in mea_locs[:2]:
+                try:
+                    url = f"https://www.bayt.com/en/{loc.lower().replace(' ', '-')}/jobs/search/?search={requests.utils.quote(role)}"
+                    resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+                    if resp.status_code != 200:
+                        continue
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    for a in soup.find_all("a", href=True):
+                        title = a.get_text(" ", strip=True)
+                        href = a["href"]
+                        if not title or len(title) < 6 or "job" not in href.lower():
+                            continue
+                        if not any(r.split()[0] in title.lower() for r in role_l):
+                            continue
+                        full = href if href.startswith("http") else "https://www.bayt.com" + href
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "MEA"})
+                except Exception:
+                    continue
+        seen = set(); uniq = []
+        for j in jobs:
+            if j["apply_url"] in seen: continue
+            seen.add(j["apply_url"]); uniq.append(j)
+        logger.info(f"Bayt/GulfTalent: {len(uniq)} matching jobs")
+        return uniq[:40]
+    except Exception as e:
+        logger.warning(f"Bayt scrape failed: {e}")
+        return jobs
+
+
+def scrape_builtin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape Built In (US/UK) search results for given roles."""
+    jobs = []
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        role_l = [r.lower() for r in roles]
+        us_uk_locs = [l for l in locations if any(k in l.lower() for k in ("new york", "san francisco", "seattle", "boston", "london"))]
+        if not us_uk_locs:
+            us_uk_locs = ["New York"]
+        for role in roles[:3]:
+            for loc in us_uk_locs[:2]:
+                try:
+                    url = f"https://builtin.com/jobs?search={requests.utils.quote(role)}&location={requests.utils.quote(loc)}"
+                    resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+                    if resp.status_code != 200:
+                        continue
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    for a in soup.find_all("a", href=True):
+                        title = a.get_text(" ", strip=True)
+                        href = a["href"]
+                        if not title or len(title) < 6 or "job" not in href.lower():
+                            continue
+                        if not any(r.split()[0] in title.lower() for r in role_l):
+                            continue
+                        full = href if href.startswith("http") else "https://builtin.com" + href
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Onsite", "min_experience": None, "max_experience": None, "required_skills": [], "description_text": "", "apply_url": full, "posted_at": None, "region": "US"})
+                except Exception:
+                    continue
+        seen = set(); uniq = []
+        for j in jobs:
+            if j["apply_url"] in seen: continue
+            seen.add(j["apply_url"]); uniq.append(j)
+        logger.info(f"Built In: {len(uniq)} matching jobs")
+        return uniq[:40]
+    except Exception as e:
+        logger.warning(f"Built In scrape failed: {e}")
+        return jobs
+
+
 def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     """LangGraph node: scrape one chunk of jobs."""
     day = state.day_of_week
@@ -544,6 +704,14 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     all_jobs.extend(remotive_jobs)
     jobicy_jobs = scrape_jobicy_chunk(roles, locations)
     all_jobs.extend(jobicy_jobs)
+    seek_jobs = scrape_seek_chunk(roles, locations)
+    all_jobs.extend(seek_jobs)
+    instahyre_jobs = scrape_instahyre_chunk(roles, locations)
+    all_jobs.extend(instahyre_jobs)
+    bayt_jobs = scrape_bayt_chunk(roles, locations)
+    all_jobs.extend(bayt_jobs)
+    builtin_jobs = scrape_builtin_chunk(roles, locations)
+    all_jobs.extend(builtin_jobs)
 
     new_jobs, deduped = deduplicate_and_upsert(all_jobs)
 
