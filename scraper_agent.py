@@ -327,6 +327,8 @@ def scrape_naukri_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
         }
         for role in roles:
             for location in locations:
+                if not any(k in location.lower() for k in ("bengaluru", "hyderabad", "bangalore", "mumbai", "delhi", "pune", "chennai")):
+                    continue
                 try:
                     url = f"https://www.naukri.com/{role.lower().replace(' ', '-')}-jobs-{location.lower().replace(' ', '-')}"
                     resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
@@ -715,6 +717,158 @@ def scrape_builtin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
         return jobs
 
 
+COMPANY_LIST = [
+    "NVIDIA", "Advanced Micro Devices", "Intel Corporation", "Broadcom", "Marvell Technology",
+    "Qualcomm", "Microsoft Corporation", "Alphabet", "Amazon Web Services", "Meta Platforms",
+    "Oracle Corporation", "IBM Corporation", "OpenAI", "Anthropic", "Palantir Technologies",
+    "Snowflake", "Databricks", "Salesforce", "ServiceNow", "Adobe", "C3.ai", "UiPath",
+    "Scale AI", "Perplexity AI", "Midjourney", "Tesla", "Cruise", "Waymo", "Netradyne",
+    "Persistent Systems", "Infosys", "Tata Consultancy Services", "Wipro", "HCLTech",
+    "LTIMindtree", "Tech Mahindra", "Tata Elxsi", "Cognizant India", "Fractal Analytics",
+    "Sarvam AI", "Yellow.ai", "Uniphore", "CoRover.ai", "InMobi", "Mu Sigma",
+    "IdeaForge", "Cropin", "Gramener",
+]
+
+
+def _slug_variants(name: str) -> List[str]:
+    base = name.lower().replace("&", "and")
+    variants = set()
+    variants.add(base.replace(" ", "").replace(".", "").replace(",", ""))
+    variants.add(base.replace(" ", "-").replace(".", "").replace(",", ""))
+    return [v for v in variants if v]
+
+
+def _clean_html_text(html: str) -> str:
+    if not html:
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+        return clean_description(BeautifulSoup(html, "html.parser").get_text(" ", strip=True), 500)
+    except Exception:
+        return clean_description(html, 500)
+
+
+def scrape_greenhouse_board(slug: str, roles: List[str], locations: List[str]) -> List[Dict]:
+    jobs = []
+    try:
+        import requests
+        url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
+        resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
+            return jobs
+        data = resp.json().get("jobs", [])
+        role_l = [r.lower() for r in roles]
+        loc_l = [l.lower() for l in locations]
+        for j in data:
+            title = (j.get("title") or "").strip()
+            if not title or not any(r.split()[0] in title.lower() for r in role_l):
+                continue
+            loc_obj = j.get("location")
+            loc_name = loc_obj.get("name", "") if isinstance(loc_obj, dict) else (loc_obj or "")
+            if loc_l and loc_name and not any(l.split()[0] in loc_name.lower() for l in loc_l):
+                if "remote" not in loc_name.lower():
+                    continue
+            desc = _clean_html_text(j.get("content", "") or "")
+            url_apply = j.get("absolute_url") or j.get("url") or ""
+            if not url_apply:
+                continue
+            ws = "Remote" if "remote" in (title + " " + loc_name).lower() else "Onsite"
+            jobs.append({
+                "title": title,
+                "company": slug.replace("-", " ").title(),
+                "location": loc_name or "Unknown",
+                "work_style": ws,
+                "min_experience": None,
+                "max_experience": None,
+                "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
+                "description_text": desc or f"{title} at {slug}",
+                "apply_url": url_apply,
+                "posted_at": j.get("updated_at"),
+                "region": "US",
+            })
+        return jobs
+    except Exception as e:
+        logger.debug(f"Greenhouse {slug} failed: {e}")
+        return jobs
+
+
+def scrape_lever_board(slug: str, roles: List[str], locations: List[str]) -> List[Dict]:
+    jobs = []
+    try:
+        import requests
+        url = f"https://api.lever.co/v0/postings/{slug}?mode=json"
+        resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
+            return jobs
+        data = resp.json()
+        if not isinstance(data, list):
+            return jobs
+        role_l = [r.lower() for r in roles]
+        loc_l = [l.lower() for l in locations]
+        for j in data:
+            title = (j.get("text") or "").strip()
+            if not title or not any(r.split()[0] in title.lower() for r in role_l):
+                continue
+            cats = j.get("categories", {}) or {}
+            loc_name = cats.get("location", "") or ""
+            if loc_l and loc_name and not any(l.split()[0] in loc_name.lower() for l in loc_l):
+                if "remote" not in loc_name.lower():
+                    continue
+            desc = _clean_html_text(j.get("description", "") or j.get("descriptionPlain", "") or "")
+            url_apply = j.get("hostedUrl") or j.get("applyUrl") or ""
+            if not url_apply:
+                continue
+            ws = "Remote" if "remote" in (title + " " + loc_name).lower() else "Onsite"
+            jobs.append({
+                "title": title,
+                "company": slug.replace("-", " ").title(),
+                "location": loc_name or "Unknown",
+                "work_style": ws,
+                "min_experience": None,
+                "max_experience": None,
+                "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
+                "description_text": desc or f"{title} at {slug}",
+                "apply_url": url_apply,
+                "posted_at": j.get("createdAt"),
+                "region": "US",
+            })
+        return jobs
+    except Exception as e:
+        logger.debug(f"Lever {slug} failed: {e}")
+        return jobs
+
+
+def scrape_company_careers_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    jobs = []
+    seen_urls: set = set()
+    for company in COMPANY_LIST:
+        for slug in _slug_variants(company):
+            found = []
+            for fetcher in (scrape_greenhouse_board, scrape_lever_board):
+                try:
+                    found = fetcher(slug, roles, locations)
+                except Exception:
+                    found = []
+                if found:
+                    break
+            for j in found:
+                url = j.get("apply_url", "")
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                j["company"] = company
+                jobs.append(j)
+            if found:
+                break
+            try:
+                import time
+                time.sleep(0.1)
+            except Exception:
+                pass
+    logger.info(f"Company careers: {len(jobs)} matching jobs")
+    return jobs
+
+
 def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     """LangGraph node: scrape one chunk of jobs."""
     day = state.day_of_week
@@ -751,6 +905,8 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     all_jobs.extend(remotive_jobs)
     jobicy_jobs = scrape_jobicy_chunk(roles, locations)
     all_jobs.extend(jobicy_jobs)
+    company_jobs = scrape_company_careers_chunk(roles, locations)
+    all_jobs.extend(company_jobs)
     seek_jobs = scrape_seek_chunk(roles, locations)
     all_jobs.extend(seek_jobs)
     instahyre_jobs = scrape_instahyre_chunk(roles, locations)
