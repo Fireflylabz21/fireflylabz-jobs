@@ -85,7 +85,7 @@ def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                           "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
             "Accept": "application/json",
         }
-        resp = requests.get("https://remoteok.com/api", headers=headers, timeout=15)
+        resp = requests.get("https://remoteok.com/api", headers=headers, timeout=5)
         if resp.status_code != 200:
             logger.warning(f"RemoteOK API returned status {resp.status_code}")
             return jobs
@@ -148,7 +148,7 @@ def scrape_arbeitnow_chunk(roles: List[str], locations: List[str]) -> List[Dict]
         }
         # Arbeitnow job board API - filters by location_type=remote for broad reach
         url = "https://www.arbeitnow.com/api/job-board/"
-        resp = requests.get(url, headers=headers, timeout=15)
+        resp = requests.get(url, headers=headers, timeout=5)
         if resp.status_code != 200:
             logger.warning(f"Arbeitnow API returned status {resp.status_code}")
             return jobs
@@ -331,7 +331,7 @@ def scrape_naukri_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                     continue
                 try:
                     url = f"https://www.naukri.com/{role.lower().replace(' ', '-')}-jobs-{location.lower().replace(' ', '-')}"
-                    resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+                    resp = requests.get(url, headers=headers, timeout=5, allow_redirects=True)
                     if resp.status_code != 200:
                         logger.debug(f"Naukri: {role}/{location} returned {resp.status_code}")
                         continue
@@ -406,7 +406,7 @@ def scrape_linkedin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                         f"?keywords={role}&location={location}"
                         "&position=1&pageNum=0"
                     )
-                    resp = requests.get(search_url, headers=headers, timeout=15)
+                    resp = requests.get(search_url, headers=headers, timeout=5)
                     if resp.status_code != 200:
                         logger.debug(f"LinkedIn: {role}/{location} returned {resp.status_code}")
                         continue
@@ -504,7 +504,7 @@ def scrape_remotive_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                 "work_style": "Remote",
                 "min_experience": None,
                 "max_experience": None,
-                "required_skills": [role],
+                "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
                 "description_text": clean_description(j.get("description", ""), 500),
                 "apply_url": url,
                 "posted_at": j.get("publication_date"),
@@ -545,7 +545,7 @@ def scrape_jobicy_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                 "work_style": "Remote",
                 "min_experience": None,
                 "max_experience": None,
-                "required_skills": [role],
+                "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
                 "description_text": clean_description(j.get("jobDescription", ""), 500),
                 "apply_url": url,
                 "posted_at": j.get("pubDate"),
@@ -873,8 +873,8 @@ def _candidate_career_urls(company: str) -> List[str]:
     slug = company.lower().replace(" ", "").replace(".", "").replace(",", "")
     slug_dash = company.lower().replace(" ", "-").replace(".", "").replace(",", "")
     urls = []
-    for base in (f"https://www.{slug}.com", f"https://{slug}.com", f"https://careers.{slug}.com", f"https://{slug_dash}.com"):
-        for path in ("/careers", "/jobs", "/career", "/open-positions", "/join-us"):
+    for base in (f"https://www.{slug}.com", f"https://{slug}.com"):
+        for path in ("/careers", "/jobs"):
             urls.append(base + path)
     return urls
 
@@ -893,7 +893,7 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
             try:
                 import requests
                 from bs4 import BeautifulSoup
-                resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+                resp = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
                 if resp.status_code != 200:
                     continue
                 soup = BeautifulSoup(resp.text, "html.parser")
@@ -923,17 +923,6 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
                         if "remote" not in loc_name.lower():
                             continue
                     desc = clean_description(title + " " + company + " " + loc_name, 500)
-                    try:
-                        r2 = requests.get(full, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-                        if r2.status_code == 200:
-                            soup2 = BeautifulSoup(r2.text, "html.parser")
-                            meta = soup2.find("meta", attrs={"name": "description"})
-                            if meta and meta.get("content"):
-                                desc = clean_description(meta["content"], 500)
-                            else:
-                                desc = clean_description(soup2.get_text(" ", strip=True)[:2000], 500)
-                    except Exception:
-                        pass
                     ws = "Remote" if "remote" in (title + " " + loc_name).lower() else "Onsite"
                     job = {
                         "title": title[:120],
