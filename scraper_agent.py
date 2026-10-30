@@ -194,29 +194,76 @@ def scrape_arbeitnow_chunk(roles: List[str], locations: List[str]) -> List[Dict]
 
 """DB helpers."""
 def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
-    """Deduplicate jobs by apply_url and upsert to DB.
+    """Validate, deduplicate, then upsert jobs to Supabase.
+
+    Mandatory fields (title, company, location, description_text, apply_url)
+    must be present. Deduplication happens BEFORE any DB write.
     Returns (new_jobs_count, deduped_count).
     """
     if not jobs:
         return 0, 0
+
+    # 1. Validate + format
+    valid: List[Dict] = []
+    for job in jobs:
+        title = (job.get("title") or "").strip()
+        company = (job.get("company") or "").strip()
+        location = (job.get("location") or "").strip()
+        apply_url = (job.get("apply_url") or "").strip()
+        description = clean_description(job.get("description_text", ""), 500)
+        if not (title and company and location and description and apply_url):
+            continue
+        job["title"] = title
+        job["company"] = company
+        job["location"] = location
+        job["apply_url"] = apply_url
+        job["description_text"] = description
+        skills = job.get("required_skills") or []
+        if isinstance(skills, str):
+            skills = [x.strip() for x in skills.split(",") if x.strip()]
+        job["required_skills"] = skills
+        for k in ("min_experience", "max_experience"):
+            v = job.get(k)
+            if v is not None:
+                try:
+                    job[k] = int(v)
+                except (ValueError, TypeError):
+                    job[k] = None
+        valid.append(job)
+
+    # 2. Deduplicate in memory (before any DB write)
+    seen_urls: set = set()
+    seen_keys: set = set()
+    unique: List[Dict] = []
+    for job in valid:
+        url = job["apply_url"]
+        key = (job["title"].lower(), job["company"].lower(), job["location"].lower())
+        if url in seen_urls or key in seen_keys:
+            continue
+        seen_urls.add(url)
+        seen_keys.add(key)
+        unique.append(job)
+
+    deduped_count = len(jobs) - len(unique)
+    if not unique:
+        return 0, deduped_count
+
+    # 3. Upsert only after deduplication
     conn = get_db_connection()
     if conn is None:
         logger.error("No DB connection available")
-        return 0, 0
+        return 0, deduped_count
+
     new_count = 0
-    deduped_count = 0
     try:
         with conn.cursor() as cur:
-            for job in jobs:
-                apply_url = job.get("apply_url", "").strip()
-                if not apply_url:
-                    deduped_count += 1
-                    continue
+            for job in unique:
+                apply_url = job["apply_url"]
                 existing = find_existing_job(cur, apply_url=apply_url)
                 if existing:
                     deduped_count += 1
                     continue
-                description = job.get("description_text", "")
+                description = job["description_text"]
                 embedding = None
                 if description and GEMINI_API_KEY:
                     try:
@@ -227,9 +274,9 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
                 try:
                     upsert_job(
                         cur,
-                        title=job.get("title", ""),
-                        company=job.get("company", ""),
-                        location=job.get("location", ""),
+                        title=job["title"],
+                        company=job["company"],
+                        location=job["location"],
                         work_style=job.get("work_style", ""),
                         min_experience=job.get("min_experience"),
                         max_experience=job.get("max_experience"),
@@ -241,7 +288,7 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
                         is_active=True,
                     )
                     new_count += 1
-                    logger.info(f"Upserted new job: {job.get('title')} at {job.get('company')}")
+                    logger.info(f"Upserted new job: {job['title']} at {job['company']}")
                 except Exception as e:
                     logger.error(f"Upsert failed for {apply_url}: {e}")
         conn.commit()
@@ -256,8 +303,8 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
             conn.close()
         except Exception:
             pass
-    return new_count, deduped_count
 
+    return new_count, deduped_count
 
 """LangGraph nodes."""
 
