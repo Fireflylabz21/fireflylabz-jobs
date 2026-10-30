@@ -869,6 +869,94 @@ def scrape_company_careers_chunk(roles: List[str], locations: List[str]) -> List
     return jobs
 
 
+def _candidate_career_urls(company: str) -> List[str]:
+    slug = company.lower().replace(" ", "").replace(".", "").replace(",", "")
+    slug_dash = company.lower().replace(" ", "-").replace(".", "").replace(",", "")
+    urls = []
+    for base in (f"https://www.{slug}.com", f"https://{slug}.com", f"https://careers.{slug}.com", f"https://{slug_dash}.com"):
+        for path in ("/careers", "/jobs", "/career", "/open-positions", "/join-us"):
+            urls.append(base + path)
+    return urls
+
+
+def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[Dict]:
+    jobs = []
+    seen_urls: set = set()
+    role_l = [r.lower() for r in roles]
+    loc_l = [l.lower() for l in locations]
+
+    for company in COMPANY_LIST:
+        found_for_company = False
+        for url in _candidate_career_urls(company):
+            if found_for_company:
+                break
+            try:
+                import requests
+                from bs4 import BeautifulSoup
+                resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code != 200:
+                    continue
+                soup = BeautifulSoup(resp.text, "html.parser")
+                for a in soup.find_all("a", href=True):
+                    title = a.get_text(" ", strip=True)
+                    href = a["href"]
+                    if not title or len(title) < 6:
+                        continue
+                    if "job" not in href.lower() and "career" not in href.lower() and "position" not in href.lower() and "opening" not in href.lower():
+                        continue
+                    if not any(r.split()[0] in title.lower() for r in role_l):
+                        continue
+                    full = href if href.startswith("http") else url.rstrip("/") + "/" + href.lstrip("/")
+                    if full in seen_urls:
+                        continue
+                    loc_name = ""
+                    parent = a.find_parent()
+                    if parent:
+                        txt = parent.get_text(" ", strip=True)
+                        for l in locations:
+                            if l.lower() in txt.lower():
+                                loc_name = l
+                                break
+                    if not loc_name:
+                        loc_name = locations[0] if locations else "Unknown"
+                    if loc_l and loc_name and loc_name != "Unknown" and not any(l.split()[0] in loc_name.lower() for l in loc_l):
+                        if "remote" not in loc_name.lower():
+                            continue
+                    desc = clean_description(title + " " + company + " " + loc_name, 500)
+                    try:
+                        r2 = requests.get(full, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                        if r2.status_code == 200:
+                            soup2 = BeautifulSoup(r2.text, "html.parser")
+                            meta = soup2.find("meta", attrs={"name": "description"})
+                            if meta and meta.get("content"):
+                                desc = clean_description(meta["content"], 500)
+                            else:
+                                desc = clean_description(soup2.get_text(" ", strip=True)[:2000], 500)
+                    except Exception:
+                        pass
+                    ws = "Remote" if "remote" in (title + " " + loc_name).lower() else "Onsite"
+                    job = {
+                        "title": title[:120],
+                        "company": company,
+                        "location": loc_name,
+                        "work_style": ws,
+                        "min_experience": None,
+                        "max_experience": None,
+                        "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
+                        "description_text": desc,
+                        "apply_url": full,
+                        "posted_at": None,
+                        "region": "US",
+                    }
+                    seen_urls.add(full)
+                    jobs.append(job)
+                    found_for_company = True
+            except Exception:
+                continue
+    logger.info(f"Direct company sites: {len(jobs)} matching jobs")
+    return jobs
+
+
 def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     """LangGraph node: scrape one chunk of jobs."""
     day = state.day_of_week
@@ -905,6 +993,8 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     all_jobs.extend(remotive_jobs)
     jobicy_jobs = scrape_jobicy_chunk(roles, locations)
     all_jobs.extend(jobicy_jobs)
+    direct_company_jobs = scrape_direct_company_sites(roles, locations)
+    all_jobs.extend(direct_company_jobs)
     company_jobs = scrape_company_careers_chunk(roles, locations)
     all_jobs.extend(company_jobs)
     seek_jobs = scrape_seek_chunk(roles, locations)
