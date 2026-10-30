@@ -261,6 +261,33 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
                 apply_url = job["apply_url"]
                 existing = find_existing_job(cur, apply_url=apply_url)
                 if existing:
+                    description = job["description_text"]
+                    embedding = None
+                    if description and GEMINI_API_KEY:
+                        try:
+                            emb = get_gemini_embedding(description)
+                            embedding = emb.embedding if emb else None
+                        except Exception as e:
+                            logger.error(f"Embedding error: {e}")
+                    # Refresh fields (cleaned description, etc.) on existing rows
+                    try:
+                        upsert_job(
+                            cur,
+                            title=job["title"],
+                            company=job["company"],
+                            location=job["location"],
+                            work_style=job.get("work_style", ""),
+                            min_experience=job.get("min_experience"),
+                            max_experience=job.get("max_experience"),
+                            required_skills=job.get("required_skills", []),
+                            description_text=description,
+                            apply_url=apply_url,
+                            embedding=embedding,
+                            posted_at=job.get("posted_at"),
+                            is_active=True,
+                        )
+                    except Exception as e:
+                        logger.error(f"Update failed for {apply_url}: {e}")
                     deduped_count += 1
                     continue
                 description = job["description_text"]
