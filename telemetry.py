@@ -7,7 +7,7 @@ from config import (
     FROM_EMAIL, RESEND_API_KEY,
 )
 
-TELEMETRY_EMAIL = os.getenv("TELEMETRY_EMAIL", os.getenv("FROM_EMAIL", ""))
+TELEMETRY_EMAIL = os.getenv("TELEMETRY_EMAIL", "Fireflylabz@gmail.com")
 
 _state = {
     "llm_calls": [],
