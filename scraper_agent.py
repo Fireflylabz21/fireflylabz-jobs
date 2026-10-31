@@ -9,6 +9,7 @@ import asyncio
 import time
 import datetime
 import random
+import re
 import logging
 from typing import List, Dict, Optional, Tuple, Any
 
@@ -213,6 +214,18 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
         description = clean_description(job.get("description_text", ""), 500)
         if not (title and company and location and description and apply_url):
             continue
+        # ignore remote/no-location jobs
+        if location.lower() in ("remote", "unknown", ""):
+            continue
+        if len(description) < 20:
+            continue
+        # normalize location: top location + mention all in description
+        loc_parts = [x.strip() for x in re.split(r"[,;]", location) if x.strip()]
+        if loc_parts:
+            top_loc = loc_parts[0]
+            if len(loc_parts) > 1:
+                description = f"Locations: {location}. {description}"
+            location = top_loc
         job["title"] = title
         job["company"] = company
         job["location"] = location
