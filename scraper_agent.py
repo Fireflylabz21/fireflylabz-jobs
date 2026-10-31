@@ -24,6 +24,7 @@ from chunk_dispatcher import get_today_chunks, WEEKLY_SCHEDULE
 from db import get_db_connection, upsert_job, find_existing_job
 from embeddings import get_gemini_embedding
 from config import DRY_RUN, GEMINI_API_KEY, GEMINI_EMBED_MODEL, THROTTLE_SECONDS
+from telemetry import record_scrape, send_report
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -1235,6 +1236,11 @@ Examples:
         result = agent.run()
 
     print(f"\nScraperAgent Result: {result}")
+    try:
+        record_scrape(result)
+        send_report("Scraper Telemetry Report")
+    except Exception as e:
+        print(f"[telemetry] failed: {e}")
 
 
 if __name__ == "__main__":

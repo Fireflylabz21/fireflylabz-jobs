@@ -2,6 +2,7 @@
 import google.generativeai as genai
 from typing import Optional
 from config import GEMINI_API_KEY, GEMINI_API_KEY_FALLBACK, GEMINI_EMBED_MODEL
+from telemetry import record_embed
 
 _configured_key = None
 
@@ -36,6 +37,7 @@ def generate_embedding(text: str) -> list:
         output_dimensionality=768,  # keep pgvector HNSW <=2000 dims
     )
     emb = resp["embedding"] if isinstance(resp, dict) else resp.embedding
+    record_embed(len(text) // 4)
     return list(emb)
 
 

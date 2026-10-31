@@ -11,6 +11,7 @@ from config import (
     OPENROUTER_API_KEY, OPENROUTER_MODEL,
     DEEPSEEK_API_KEY, DEEPSEEK_MODEL,
 )
+from telemetry import record_llm
 
 
 def generate_text(prompt: str, json_mode: bool = False) -> Optional[str]:
@@ -25,6 +26,14 @@ def generate_text(prompt: str, json_mode: bool = False) -> Optional[str]:
             resp = model.generate_content(prompt, generation_config=cfg)
             text = getattr(resp, "text", None)
             if text:
+                usage = getattr(resp, "usage_metadata", None)
+                pt = getattr(usage, "prompt_token_count", 0) if usage else 0
+                ct = getattr(usage, "candidates_token_count", 0) if usage else 0
+                if not pt:
+                    pt = len(prompt) // 4
+                if not ct:
+                    ct = len(text) // 4
+                record_llm("gemini", GEMINI_LLM_MODEL, pt, ct)
                 return text
         except Exception:
             continue
@@ -47,6 +56,8 @@ def generate_text(prompt: str, json_mode: bool = False) -> Optional[str]:
                 data = r.json()
                 content = data["choices"][0]["message"]["content"]
                 if content:
+                    usage = data.get("usage", {}) or {}
+                    record_llm("openrouter", OPENROUTER_MODEL, usage.get("prompt_tokens", 0) or len(prompt)//4, usage.get("completion_tokens", 0) or len(content)//4)
                     return content
         except Exception:
             pass
@@ -69,6 +80,8 @@ def generate_text(prompt: str, json_mode: bool = False) -> Optional[str]:
                 data = r.json()
                 content = data["choices"][0]["message"]["content"]
                 if content:
+                    usage = data.get("usage", {}) or {}
+                    record_llm("deepseek", DEEPSEEK_MODEL, usage.get("prompt_tokens", 0) or len(prompt)//4, usage.get("completion_tokens", 0) or len(content)//4)
                     return content
         except Exception:
             pass

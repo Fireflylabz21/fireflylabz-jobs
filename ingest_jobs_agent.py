@@ -28,6 +28,7 @@ from matcher import search_matching_jobs
 from agent import evaluate_and_rank_jobs
 from emailer import send_newsletter_email
 from config import DRY_RUN, MAX_SUBSCRIBERS_PER_RUN, THROTTLE_SECONDS, JOB_LOOKBACK_DAYS, EMAIL_PROVIDER
+from telemetry import record_ingest, send_report
 
 
 def run_ingest_jobs_agent(scrape_first: bool = False):
@@ -185,6 +186,8 @@ Examples:
     print(f"SOURCE=supabase.subscribers")
 
     result = run_ingest_jobs_agent(scrape_first=args.scrape_first)
+    record_ingest(result)
+    send_report("Ingest Jobs Telemetry Report")
     print(f"\nResult: {result}")
 
 

@@ -53,6 +53,7 @@ jobs:
           THROTTLE_SECONDS: '4.5'
           JOB_LOOKBACK_DAYS: '14'
           DRY_RUN: 'false'
+          TELEMETRY_EMAIL: ${{ secrets.TELEMETRY_EMAIL }}
         run: |
           if [ "${{ github.event.inputs.scrape_first }}" = "true" ]; then
             python ingest_jobs_agent.py --scrape-first

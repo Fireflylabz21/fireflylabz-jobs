@@ -38,4 +38,5 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           THROTTLE_SECONDS: '4.5'
           DRY_RUN: 'false'
+          TELEMETRY_EMAIL: ${{ secrets.TELEMETRY_EMAIL }}
         run: python scraper_agent.py
