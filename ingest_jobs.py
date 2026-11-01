@@ -67,7 +67,6 @@ def _norm_arbeitnow(items, limit: int):
 
 def fetch_all(limit: int = 30):
     jobs = []
-    # 1. RemoteOK
     try:
         r = requests.get("https://remoteok.com/api", headers=HEADERS, timeout=30)
         r.raise_for_status()
@@ -78,7 +77,6 @@ def fetch_all(limit: int = 30):
     except Exception as e:
         print(f"  [ingest] remoteok failed (non-fatal): {e}")
     time.sleep(2)
-    # 2. Arbeitnow
     try:
         r = requests.get("https://www.arbeitnow.com/api/job-board-api", headers=HEADERS, timeout=30)
         r.raise_for_status()
@@ -87,16 +85,20 @@ def fetch_all(limit: int = 30):
         jobs += _norm_arbeitnow(items, limit - len(jobs))
         print(f"  [ingest] arbeitnow: +{len(jobs)-before}")
     except Exception as e:
-        print(f"  [ingest] arbeitnow failed (non-fatal): {e}")
+        print(f"  [ingest]arbeitnow failed (non-fatal): {e}")
     return jobs[:limit]
 
 
 def upsert_jobs(jobs) -> tuple:
-    """Insert new by apply_url; returns (inserted, skipped)."""
+    """Insert new by apply_url; returns (inserted, skipped).
+
+    Embedding is optional. If embedding fails, the job is still inserted
+    with embedding=NULL so the weekly queue keeps working.
+    """
     if not jobs:
         return 0, 0
     conn = get_db_connection()
-    ins = skip = 0
+    ins = skip = empty_emb = 0
     with conn.cursor() as cur:
         for j in jobs:
             if not j.get("apply_url") or not j.get("title"):
@@ -112,8 +114,8 @@ def upsert_jobs(jobs) -> tuple:
                 emb = generate_embedding(text)
             except Exception as e:
                 print(f"  [ingest] embedding failed for {j['title'][:40]}: {e}")
-                skip += 1
-                continue
+                emb = None
+                empty_emb += 1
             cur.execute(
                 """INSERT INTO jobs (title, company, location, work_style, min_experience,
                    max_experience, required_skills, description_text, apply_url, embedding)
@@ -124,6 +126,7 @@ def upsert_jobs(jobs) -> tuple:
             time.sleep(1.5)  # Gemini embedding quota guard
     conn.commit()
     conn.close()
+    print(f"  [ingest] inserted={ins} empty_embedding={empty_emb} deduped/invalid={skip}")
     return ins, skip
 
 
@@ -135,7 +138,7 @@ def main():
     jobs = fetch_all(args.limit)
     print(f"  [ingest] fetched {len(jobs)} candidates")
     ins, skip = upsert_jobs(jobs)
-    print(f"DONE. inserted={ins} skipped(dupes)={skip}")
+    print(f"DONE. inserted={ins} empty_embedding={skip} deduped/invalid={skip}")
 
 
 if __name__ == "__main__":
