@@ -30,3 +30,6 @@ test_*.py
 # OS
 .DS_Store
 Thumbs.db
+.env
+.envest_env.txt
+*envest_env*
