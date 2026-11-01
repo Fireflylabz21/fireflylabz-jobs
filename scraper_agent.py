@@ -26,6 +26,7 @@ from embeddings import get_gemini_embedding
 from config import DRY_RUN, GEMINI_API_KEY, GEMINI_EMBED_MODEL, THROTTLE_SECONDS
 from telemetry import record_scrape, send_report
 
+FAILED_JOBS: List[str] = []
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 """ScraperAgentState - State for the LangGraph scraper orchestrator."""
@@ -332,6 +333,10 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
                     logger.info(f"Upserted new job: {job['title']} at {job['company']}")
                 except Exception as e:
                     logger.error(f"Upsert failed for {apply_url}: {e}")
+                    try:
+                        FAILED_JOBS.append(apply_url)
+                    except Exception:
+                        pass
         conn.commit()
     except Exception as e:
         logger.error(f"DB operation error: {e}")
@@ -1218,12 +1223,19 @@ Examples:
                         help="Run for N days (default: 1 = today)")
     parser.add_argument("--print-schedule", action="store_true",
                         help="Print weekly schedule")
+    parser.add_argument("--retry-failed", action="store_true",
+                        help="Retry the scrape once if any jobs failed")
+    parser.add_argument("--report-failures", action="store_true",
+                        help="Email a failure report to telemetry recipient")
     args = parser.parse_args()
 
     if args.print_schedule:
         from chunk_dispatcher import print_weekly_schedule
         print_weekly_schedule()
         return
+
+    global FAILED_JOBS
+    FAILED_JOBS = []
 
     agent = ScraperAgent(dry_run=args.dry_run)
 
@@ -1235,9 +1247,25 @@ Examples:
     else:
         result = agent.run()
 
+    # Retry once if requested and there were failures
+    if args.retry_failed and FAILED_JOBS:
+        print(f"\n[retry] {len(FAILED_JOBS)} failed jobs detected; retrying scrape...")
+        FAILED_JOBS.clear()
+        result = agent.run()
+
     print(f"\nScraperAgent Result: {result}")
+    if FAILED_JOBS:
+        print(f"\n[failures] {len(FAILED_JOBS)} jobs failed:")
+        for u in FAILED_JOBS[:50]:
+            print(f"  - {u}")
+        if args.report_failures:
+            try:
+                from telemetry import send_report
+                send_report("Scraper Failure Report")
+            except Exception as e:
+                print(f"[telemetry] failed: {e}")
     try:
-        record_scrape(result)
+        record_scrape({**(result if isinstance(result, dict) else {}), "failed_jobs": list(FAILED_JOBS[:50])})
         send_report("Scraper Telemetry Report")
     except Exception as e:
         print(f"[telemetry] failed: {e}")

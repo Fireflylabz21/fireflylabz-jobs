@@ -1,10 +1,10 @@
-"""Unified LLM text generation with fallbacks: Gemini (primary/fallback) -> OpenRouter -> DeepSeek."""
 import json
 import os
 from typing import Optional
 
 import requests
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from config import (
     GEMINI_API_KEY, GEMINI_API_KEY_FALLBACK, GEMINI_LLM_MODEL,
@@ -14,16 +14,21 @@ from config import (
 from telemetry import record_llm
 
 
+def _gemini_client(key: str):
+    return genai.Client(api_key=key)
+
+
 def generate_text(prompt: str, json_mode: bool = False) -> Optional[str]:
     # 1. Gemini primary + fallback
     for key in (GEMINI_API_KEY, GEMINI_API_KEY_FALLBACK):
         if not key:
             continue
         try:
-            genai.configure(api_key=key)
-            model = genai.GenerativeModel(GEMINI_LLM_MODEL)
-            cfg = {"response_mime_type": "application/json"} if json_mode else {}
-            resp = model.generate_content(prompt, generation_config=cfg)
+            client = _gemini_client(key)
+            cfg = None
+            if json_mode:
+                cfg = types.GenerateContentConfig(response_mime_type="application/json")
+            resp = client.models.generate_content(model=GEMINI_LLM_MODEL, contents=prompt, config=cfg)
             text = getattr(resp, "text", None)
             if text:
                 usage = getattr(resp, "usage_metadata", None)
