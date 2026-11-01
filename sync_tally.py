@@ -97,16 +97,32 @@ def upsert_rows(rows):
                      r["expected_location"], r["resume_url"], r["tally_response_id"], r["email"]))
                 n_upd += 1
             else:
-                cur.execute(
-                    """INSERT INTO subscribers (full_name, email, phone_number, primary_skillsets,
-                       secondary_skillsets, years_experience, current_company, current_ctc,
-                       notice_period, current_location, expected_location, resume_url,
-                       tally_response_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
-                    (r["full_name"], r["email"], r["phone_number"], r["primary_skillsets"],
-                     r["secondary_skillsets"], r["years_experience"], r["current_company"],
-                     r["current_ctc"], r["notice_period"], r["current_location"],
-                     r["expected_location"], r["resume_url"], r["tally_response_id"]))
-                n_new += 1
+                # handle duplicate tally_response_id by updating that row instead of inserting
+                cur.execute("SELECT id FROM subscribers WHERE tally_response_id = %s;", (r["tally_response_id"],))
+                dup = cur.fetchone()
+                if dup:
+                    cur.execute(
+                        """UPDATE subscribers SET full_name=%s, email=%s, phone_number=%s,
+                           primary_skillsets=%s, secondary_skillsets=%s, years_experience=%s,
+                           current_company=%s, current_ctc=%s, notice_period=%s,
+                           current_location=%s, expected_location=%s, resume_url=%s
+                           WHERE tally_response_id=%s;""",
+                        (r["full_name"], r["email"], r["phone_number"], r["primary_skillsets"],
+                         r["secondary_skillsets"], r["years_experience"], r["current_company"],
+                         r["current_ctc"], r["notice_period"], r["current_location"],
+                         r["expected_location"], r["resume_url"], r["tally_response_id"]))
+                    n_upd += 1
+                else:
+                    cur.execute(
+                        """INSERT INTO subscribers (full_name, email, phone_number, primary_skillsets,
+                           secondary_skillsets, years_experience, current_company, current_ctc,
+                           notice_period, current_location, expected_location, resume_url,
+                           tally_response_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);""",
+                        (r["full_name"], r["email"], r["phone_number"], r["primary_skillsets"],
+                         r["secondary_skillsets"], r["years_experience"], r["current_company"],
+                         r["current_ctc"], r["notice_period"], r["current_location"],
+                         r["expected_location"], r["resume_url"], r["tally_response_id"]))
+                    n_new += 1
     conn.commit()
     conn.close()
     print(f"  [db] upserted: new={n_new} updated={n_upd}")
