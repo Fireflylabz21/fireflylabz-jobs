@@ -74,6 +74,47 @@ def clean_description(text: str, max_len: int = 500) -> str:
     return text
 
 
+def remove_about_sections(text: str) -> str:
+    if not text:
+        return text
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    keep = []
+    skip_prefixes = (
+        "about us", "about the company", "about company", "our company",
+        "who we are", "company overview", "overview", "our mission",
+        "our story", "company details", "corporate information"
+    )
+    for part in parts:
+        p = part.strip()
+        if not p:
+            continue
+        low = p.lower()
+        if any(low.startswith(sp) for sp in skip_prefixes):
+            continue
+        keep.append(p)
+    return " ".join(keep)
+
+
+def truncate_to_complete_sentence(text: str) -> str:
+    if not text:
+        return text
+    last_end = -1
+    for m in re.finditer(r"[.!?](?:\s|$)", text):
+        last_end = m.end()
+    if last_end <= 0:
+        return text.strip()
+    return text[:last_end].strip()
+
+
+def prepare_job_description(description_text: str, location: str) -> str:
+    desc = clean_description(description_text or "", 1200)
+    desc = remove_about_sections(desc)
+    desc = truncate_to_complete_sentence(desc)
+    if location and location.lower() not in ("remote", "unknown", ""):
+        desc = (desc + " Location: " + location + ".").strip()
+    return desc
+
+
 """Scraper sources - real implementations with fallback stubs."""
 def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
     """Scrape RemoteOK API for jobs matching roles/locations.
@@ -213,7 +254,7 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
         company = (job.get("company") or "").strip()
         location = (job.get("location") or "").strip()
         apply_url = (job.get("apply_url") or "").strip()
-        description = clean_description(job.get("description_text", ""), 500)
+        description = prepare_job_description(job.get("description_text", ""), location)
         if not (title and company and location and description and apply_url):
             continue
         # ignore remote/no-location jobs
@@ -221,13 +262,10 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
             continue
         if len(description) < 20:
             continue
-        # normalize location: top location + mention all in description
+        # normalize location: keep only the first location in the field
         loc_parts = [x.strip() for x in re.split(r"[,;]", location) if x.strip()]
         if loc_parts:
-            top_loc = loc_parts[0]
-            if len(loc_parts) > 1:
-                description = f"Locations: {location}. {description}"
-            location = top_loc
+            location = loc_parts[0]
         job["title"] = title
         job["company"] = company
         job["location"] = location
