@@ -74,10 +74,7 @@ def clean_description(text: str, max_len: int = 500) -> str:
     return text
 
 
-def remove_about_sections(text: str) -> str:
-    if not text:
-        return text
-    parts = re.split(r"(?<=[.!?])\s+", text)
+def remove_about_sections
     keep = []
     skip_prefixes = (
         "about us", "about the company", "about company", "our company",
@@ -93,6 +90,42 @@ def remove_about_sections(text: str) -> str:
             continue
         keep.append(p)
     return " ".join(keep)
+
+
+def extract_text_section(description_text: str, section_keyword: str, max_chars: int = 300) -> str:
+    """Extract text from a section of the description following a keyword.
+
+    Args:
+        description_text: Clean job description text.
+        section_keyword: Keyword to search for (e.g., 'responsibilities', 'salary').
+        max_chars: Maximum characters to return.
+
+    Returns:
+        Extracted text from the section.
+    """
+    if not description_text:
+        return ""
+
+    # Find the section keyword
+    pattern = re.compile(re.escape(section_keyword), re.IGNORECASE)
+    match = pattern.search(description_text)
+    if not match:
+        return ""
+
+    # Get text after the keyword
+    after_keyword = description_text[match.end():]
+
+    # Find the end of this section (look for known next sections)
+    next_keywords = ["salary", "compensation", "perks", "benefits", "requirements", "qualifications"]
+    end_pos = len(after_keyword)
+    for kw in next_keywords:
+        idx = after_keyword.lower().index(kw) if kw in after_keyword.lower() else len(after_keyword)
+        if idx < end_pos:
+            end_pos = idx
+
+    extracted = after_keyword[:end_pos].strip()
+    extracted = re.sub(r"\s+", " ", extracted).strip()
+    return extracted[:max_chars]
 
 
 def truncate_to_complete_sentence(text: str) -> str:
@@ -338,6 +371,8 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
                             embedding=embedding,
                             posted_at=job.get("posted_at"),
                             is_active=True,
+                            roles_responsibilities=job.get("roles_responsibilities", ""),
+                            salary_compensation=job.get("salary_compensation", ""),
                         )
                     except Exception as e:
                         logger.error(f"Update failed for {apply_url}: {e}")
@@ -366,6 +401,8 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
                         embedding=embedding,
                         posted_at=job.get("posted_at"),
                         is_active=True,
+                        roles_responsibilities=job.get("roles_responsibilities", ""),
+                        salary_compensation=job.get("salary_compensation", ""),
                     )
                     new_count += 1
                     logger.info(f"Upserted new job: {job['title']} at {job['company']}")
@@ -593,6 +630,8 @@ def scrape_remotive_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                 "apply_url": url,
                 "posted_at": j.get("publication_date"),
                 "region": "US",
+                "roles_responsibilities": "",
+                "salary_compensation": "",
             })
         logger.info(f"Remotive: {len(jobs)} matching jobs")
     except Exception as e:
@@ -634,6 +673,8 @@ def scrape_jobicy_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                 "apply_url": url,
                 "posted_at": j.get("pubDate"),
                 "region": "US",
+                "roles_responsibilities": "",
+                "salary_compensation": "",
             })
         logger.info(f"Jobicy: {len(jobs)} matching jobs")
     except Exception as e:
@@ -667,7 +708,7 @@ def scrape_seek_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://www.seek.com.au" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "APAC"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "APAC", "roles_responsibilities": "", "salary_compensation": ""})
                 except Exception:
                     continue
         seen = set(); uniq = []
@@ -707,7 +748,7 @@ def scrape_instahyre_chunk(roles: List[str], locations: List[str]) -> List[Dict]
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://www.instahyre.com" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "India"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "India", "roles_responsibilities": "", "salary_compensation": ""})
                 except Exception:
                     continue
         seen = set(); uniq = []
@@ -747,7 +788,7 @@ def scrape_bayt_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://www.bayt.com" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "MEA"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "MEA", "roles_responsibilities": "", "salary_compensation": ""})
                 except Exception:
                     continue
         seen = set(); uniq = []
@@ -787,7 +828,7 @@ def scrape_builtin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                         if not any(r.split()[0] in title.lower() for r in role_l):
                             continue
                         full = href if href.startswith("http") else "https://builtin.com" + href
-                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "US"})
+                        jobs.append({"title": title[:120], "company": "", "location": loc, "work_style": "Remote" if "remote" in title.lower() else "Onsite", "min_experience": None, "max_experience": None, "required_skills": [role], "description_text": "", "apply_url": full, "posted_at": None, "region": "US", "roles_responsibilities": "", "salary_compensation": ""})
                 except Exception:
                     continue
         seen = set(); uniq = []
@@ -869,6 +910,8 @@ def scrape_greenhouse_board(slug: str, roles: List[str], locations: List[str]) -
                 "apply_url": url_apply,
                 "posted_at": j.get("updated_at"),
                 "region": "US",
+                "roles_responsibilities": "",
+                "salary_compensation": "",
             })
         return jobs
     except Exception as e:
@@ -915,6 +958,8 @@ def scrape_lever_board(slug: str, roles: List[str], locations: List[str]) -> Lis
                 "apply_url": url_apply,
                 "posted_at": j.get("createdAt"),
                 "region": "US",
+                "roles_responsibilities": "",
+                "salary_compensation": "",
             })
         return jobs
     except Exception as e:
@@ -953,14 +998,101 @@ def scrape_company_careers_chunk(roles: List[str], locations: List[str]) -> List
     return jobs
 
 
-def _candidate_career_urls(company: str) -> List[str]:
-    slug = company.lower().replace(" ", "").replace(".", "").replace(",", "")
-    slug_dash = company.lower().replace(" ", "-").replace(".", "").replace(",", "")
-    urls = []
-    for base in (f"https://www.{slug}.com", f"https://{slug}.com"):
-        for path in ("/careers", "/jobs"):
-            urls.append(base + path)
-    return urls
+# AI Companies Career Portals (from Top 100 Ai companies.csv)
+AI_COMPANIES_CAREERS: List[Tuple[str, str]] = [
+    ("OpenAI", "https://openai.com/careers"),
+    ("Anthropic", "https://anthropic.com/careers"),
+    ("Google DeepMind", "deepmind.google/about/careers"),
+    ("xAI", "x.ai/careers"),
+    ("Meta AI", "metacareers.com"),
+    ("Mistral AI", "mistral.ai/careers"),
+    ("Cohere", "https://cohere.com/careers"),
+    ("AI21 Labs", "https://ai21.com/careers"),
+    ("Inflection AI", "https://inflection.ai/careers"),
+    ("Stability AI", "https://stability.ai/careers"),
+    ("Aleph Alpha", "https://aleph-alpha.com/careers"),
+    ("Sakana AI", "https://sakana.ai/careers"),
+    ("Poolside", "https://poolside.ai/careers"),
+    ("Magic", "https://magic.dev/careers"),
+    ("Essential AI", "https://essential.ai/careers"),
+    ("NVIDIA", "https://nvidia.com/en-us/about-nvidia/careers"),
+    ("Databricks", "https://databricks.com/company/careers"),
+    ("Scale AI", "https://scale.com/careers"),
+    ("Hugging Face", "https://huggingface.co/jobs"),
+    ("Snowflake", "https://careers.snowflake.com"),
+    ("Cerebras Systems", "https://cerebras.ai/careers"),
+    ("Groq", "https://groq.com/careers"),
+    ("SambaNova Systems", "https://sambanova.ai/careers"),
+    ("Graphcore", "https://graphcore.ai/careers"),
+    ("Together AI", "https://together.ai/careers"),
+    ("Anyscale", "https://anyscale.com/careers"),
+    ("Weights & Biases", "https://wandb.ai/careers"),
+    ("Pinecone", "https://pinecone.io/careers"),
+    ("Weaviate", "https://weaviate.io/careers"),
+    ("LangChain", "https://langchain.com/careers"),
+    ("Modal", "https://modal.com/careers"),
+    ("Replicate", "https://replicate.com/careers"),
+    ("Fireworks AI", "https://fireworks.ai/careers"),
+    ("CoreWeave", "https://coreweave.com/careers"),
+    ("Lambda", "https://lambdalabs.com/careers"),
+    ("Microsoft AI", "https://careers.microsoft.com"),
+    ("Amazon AWS AI", "https://amazon.jobs"),
+    ("Apple AI/ML", "https://jobs.apple.com"),
+    ("Salesforce AI", "https://careers.salesforce.com"),
+    ("Adobe", "https://careers.adobe.com"),
+    ("ServiceNow", "https://careers.servicenow.com"),
+    ("Oracle AI", "https://oracle.com/careers"),
+    ("IBM watsonx", "https://www.ibm.com/watsonx/careers"),
+    ("SAP AI", "https://www.sap.com/index.html#/gem/ai/careers"),
+    ("Salesforce", "https://careers.salesforce.com"),
+    ("Adobe", "https://careers.adobe.com"),
+    ("ServiceNow", "https://careers.servicenow.com"),
+    ("Oracle", "https://oracle.com/careers"),
+    ("IBM", "https://www.ibm.com/careers"),
+    ("SAP", "https://www.sap.com/index.html#/gem/ai/careers"),
+    ("Accenture", "https://www.accenture.com/us-en-careers"),
+    ("Tata Elxsi", "https://tataelxsi.com/careers"),
+    ("Tiger Analytics", "https://tigeranalytics.com/careers"),
+    ("LatentView Analytics", "https://latentview.com/careers"),
+    ("Gnani.ai", "https://gnani.ai/careers"),
+    ("Neysa", "https://neysa.ai/careers"),
+    ("Wayve", "https://wayve.ai/careers"),
+    ("Synthesia", "https://synthesia.io/careers"),
+    ("Isomorphic Labs", "https://isomorphiclabs.com/careers"),
+    ("ElevenLabs", "https://elevenlabs.io/careers"),
+    ("PolyAI", "https://poly.ai/careers"),
+    ("Darktrace", "https://darktrace.com/careers"),
+    ("BenevolentAI", "https://benevolent.com/careers"),
+    ("Tractable", "https://tractable.ai/careers"),
+    ("Peak", "https://peak.ai/careers"),
+    ("Faculty", "https://faculty.ai/careers"),
+    ("Quantexa", "https://quantexa.com/careers"),
+    ("Speechmatics", "https://speechmatics.com/careers"),
+    ("Exscientia", "https://exscientia.ai/careers"),
+    ("Multiverse", "https://multiverse.io/careers"),
+    ("Robin AI", "https://robinai.com/careers"),
+    ("Perplexity AI", "https://perplexity.ai/hub/careers"),
+    ("Runway", "https://runwayml.com/careers"),
+    ("Midjourney", "https://midjourney.com/careers"),
+    ("Glean", "https://glean.com/careers"),
+    ("Harvey", "https://harvey.ai/careers"),
+    ("Anysphere (Cursor)", "https://cursor.com/careers"),
+    ("Cognition (Devin)", "https://cognition.ai/careers"),
+    ("Sierra", "https://sierra.ai/careers"),
+    ("Figure AI", "https://figure.ai/careers"),
+    ("Anduril Industries", "https://anduril.com/careers"),
+    ("Shield AI", "https://shield.ai/careers"),
+    ("Skydio", "https://skydio.com/careers"),
+    ("Suno", "https://suno.com/careers"),
+    ("Pika", "https://pika.art/careers"),
+    ("Character.AI", "https://character.ai/careers"),
+    ("Adept AI", "https://adept.ai/careers"),
+    ("Writer", "https://writer.com/careers"),
+    ("Jasper", "https://jasper.ai/careers"),
+    ("Eightfold AI", "https://eightfold.ai/careers"),
+    ("UiPath", "https://uipath.com/company/careers"),
+]
+EOF\n"
 
 
 def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[Dict]:
@@ -969,30 +1101,28 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
     role_l = [r.lower() for r in roles]
     loc_l = [l.lower() for l in locations]
 
-    for company in COMPANY_LIST:
-        found_for_company = False
-        for url in _candidate_career_urls(company):
-            if found_for_company:
-                break
-            try:
-                import requests
-                from bs4 import BeautifulSoup
-                resp = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
-                if resp.status_code != 200:
+    for company, careers_url in AI_COMPANIES_CAREERS:
+        if found_for_company:
+            break
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            resp = requests.get(careers_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            if resp.status_code != 200:
+                continue
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for a in soup.find_all("a", href=True):
+                title = a.get_text(" ", strip=True)
+                href = a["href"]
+                if not title or len(title) < 6:
                     continue
-                soup = BeautifulSoup(resp.text, "html.parser")
-                for a in soup.find_all("a", href=True):
-                    title = a.get_text(" ", strip=True)
-                    href = a["href"]
-                    if not title or len(title) < 6:
-                        continue
-                    if "job" not in href.lower() and "career" not in href.lower() and "position" not in href.lower() and "opening" not in href.lower():
-                        continue
-                    if not any(r.split()[0] in title.lower() for r in role_l):
-                        continue
-                    full = href if href.startswith("http") else url.rstrip("/") + "/" + href.lstrip("/")
-                    if full in seen_urls:
-                        continue
+                if "job" not in href.lower() and "career" not in href.lower() and "position" not in href.lower() and "opening" not in href.lower():
+                    continue
+                if not any(r.split()[0] in title.lower() for r in role_l):
+                    continue
+                full = href if href.startswith("http") else careers_url.rstrip("/") + "/" + href.lstrip("/")
+                if full in seen_urls:
+                    continue
                     loc_name = ""
                     parent = a.find_parent()
                     if parent:
@@ -1020,6 +1150,8 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
                         "apply_url": full,
                         "posted_at": None,
                         "region": "US",
+                        "roles_responsibilities": "",
+                        "salary_compensation": "",
                     }
                     seen_urls.add(full)
                     jobs.append(job)

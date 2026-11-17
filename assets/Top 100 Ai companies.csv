@@ -1,0 +1,112 @@
+#,Company,Primary Hub(s),Core AI Focus,Careers Portal
+1,OpenAI,"US, UK (London)","Frontier LLMs, Multimodal AI",https://openai.com/careers
+2,Anthropic,"US, UK (London)","AI Safety, Claude Models",https://anthropic.com/careers
+3,Google DeepMind,"UK (London), US, India","AGI Research, Gemini, AlphaFold",deepmind.google/about/careers
+4,xAI,US,"Grok, Real-time Reasoning",x.ai/careers
+5,Meta AI (FAIR & GenAI),"US, UK (London)","Llama Open Models, AR/VR AI",metacareers.com
+6,Mistral AI,"France, UK, US",Open-weight & Enterprise LLMs,mistral.ai/careers
+7,Cohere,"Canada, US, UK",Enterprise LLMs & RAG,https://cohere.com/careers
+8,AI21 Labs,"Israel, US",Enterprise Foundation Models,https://ai21.com/careers
+9,Inflection AI,US,Enterprise & Personal AI,inflection.ai/careers
+10,Stability AI,"UK (London), US",Open Image/Video Generation,stability.ai/careers
+11,Aleph Alpha,"Germany, UK",Sovereign Enterprise AI,https://aleph-alpha.com/careers
+12,Sakana AI,"Japan, Global",Nature-inspired Foundation Models,sakana.ai/careers
+13,Poolside,"US, UK",AI for Software Engineering,poolside.ai/careers
+14,Magic,US,Long-context Code Models,magic.dev/careers
+15,Essential AI,US,Enterprise Intelligence Systems,essential.ai/careers
+16,NVIDIA,"US, India (Bengaluru/Pune), UK","AI GPUs, CUDA, NIMs",https://nvidia.com/en-us/about-nvidia/careers
+17,Databricks,"US, UK, India (Bengaluru)","Data Intelligence, MosaicML",https://databricks.com/company/careers
+18,Scale AI,"US, UK","RLHF, Data Foundry, Evaluations",[scale.com/careers](https://scale.com/careers)
+19,Hugging Face,"US, UK, Remote",Open-Source AI Hub & Libraries,huggingface.co/jobs
+20,Snowflake,"US, India, UK","AI Data Cloud, Cortex",careers.snowflake.com
+21,Cerebras Systems,"US, India",Wafer-Scale AI Chips,cerebras.ai/careers
+22,Groq,"US, UK",LPU Inference Hardware,[groq.com/careers](https://groq.com/careers)
+23,SambaNova Systems,"US, India",Enterprise AI Systems & Chips,sambanova.ai/careers
+24,Graphcore,"UK (Bristol), US",Intelligence Processing Units,graphcore.ai/careers
+25,Together AI,US,Open-Source Inference & Training,together.ai/careers
+26,Anyscale,US,Ray Distributed AI Computing,[anyscale.com/careers](https://anyscale.com/careers)
+27,Weights & Biases,"US, UK",MLOps & Experiment Tracking,wandb.ai/careers
+28,Pinecone,US,Vector Database Infrastructure,pinecone.io/careers
+29,Weaviate,"Netherlands, US, UK",Open-Source Vector DB,weaviate.io/careers
+30,LangChain,US,Agent & LLM Orchestration,[langchain.com/careers](https://langchain.com/careers)
+31,Modal,US,Serverless Cloud for AI,[modal.com/careers](https://modal.com/careers)
+32,Replicate,US,Cloud API for Open Models,[replicate.com/careers](https://replicate.com/careers)
+33,Fireworks AI,US,Fast Generative AI Inference,fireworks.ai/careers
+34,CoreWeave,"US, UK",Specialized AI GPU Cloud,[coreweave.com/careers](https://coreweave.com/careers)
+35,Lambda,US,AI Compute Cloud & Workstations,[lambdalabs.com/careers](https://lambdalabs.com/careers)
+36,Microsoft AI,"US, UK (London), India (Bengaluru/Hyd)","Copilot, Azure AI",careers.microsoft.com
+37,Amazon (AWS AI),"US, India, UK","Bedrock, Trainium, Alexa AI",amazon.jobs
+38,Apple (AI/ML),"US, UK (Cambridge), India","Apple Intelligence, Siri",jobs.apple.com
+39,Salesforce AI,"US, India (Hyd/Blr), UK","Agentforce, Einstein AI",careers.salesforce.com
+40,Adobe,"US, India (Noida/Blr), UK","Firefly, Creative GenAI",careers.adobe.com
+41,ServiceNow,"US, India (Hyderabad), UK",Enterprise Workflow Agents,careers.servicenow.com
+42,Oracle AI,"US, India, UK",OCI AI Infrastructure,[oracle.com/careers](https://oracle.com/careers)
+43,IBM (watsonx),"US, India, UK",Enterprise AI & Granite Models,[ibm.com/careers](https://ibm.com/careers)
+44,SAP AI,"Germany, India, US, UK","Joule Copilot, Business AI",jobs.sap.com
+45,Palantir Technologies,"US, UK (London)","AIP, Defense & Enterprise OS",[palantir.com/careers](https://palantir.com/careers)
+36,Microsoft AI,"US, UK (London), India (Bengaluru/Hyd)","Copilot, Azure AI",careers.microsoft.com
+37,Amazon (AWS AI),"US, India, UK","Bedrock, Trainium, Alexa AI",amazon.jobs
+38,Apple (AI/ML),"US, UK (Cambridge), India","Apple Intelligence, Siri",jobs.apple.com
+39,Salesforce AI,"US, India (Hyd/Blr), UK","Agentforce, Einstein AI",careers.salesforce.com
+40,Adobe,"US, India (Noida/Blr), UK","Firefly, Creative GenAI",careers.adobe.com
+41,ServiceNow,"US, India (Hyderabad), UK",Enterprise Workflow Agents,careers.servicenow.com
+42,Oracle AI,"US, India, UK",OCI AI Infrastructure,[oracle.com/careers](https://oracle.com/careers)
+43,IBM (watsonx),"US, India, UK",Enterprise AI & Granite Models,[ibm.com/careers](https://ibm.com/careers)
+44,SAP AI,"Germany, India, US, UK","Joule Copilot, Business AI",jobs.sap.com
+45,Palantir Technologies,"US, UK (London)","AIP, Defense & Enterprise OS",[palantir.com/careers](https://palantir.com/careers)
+46,Sarvam AI,India (Bengaluru),Sovereign Indic LLMs & Voice AI,sarvam.ai/careers
+47,Krutrim (Ola),India (Bengaluru),"Indic LLMs, AI Cloud & Silicon",[olakrutrim.com/careers](https://olakrutrim.com/careers)
+48,Fractal Analytics,"India (Mumbai/Blr), US, UK",Enterprise Decision Intelligence,fractal.ai/careers
+49,Uniphore,"India (Chennai), US",Conversational & Multimodal AI,[uniphore.com/careers](https://uniphore.com/careers)
+50,Yellow.ai,"India (Bengaluru), US",Autonomous Customer Service Agents,yellow.ai/careers
+51,Gupshup,"India (Mumbai/Blr), US",Conversational AI & Messaging,gupshup.io/careers
+52,Jio Haptik,India (Mumbai),Enterprise Conversational AI,haptik.ai/careers
+53,Qure.ai,"India (Mumbai), UK, US",Medical Imaging & Diagnostics AI,qure.ai/careers
+54,Mad Street Den (Vue.ai),"India (Chennai), US",Retail Automation & Computer Vision,vue.ai/careers
+55,Locus,"India (Bengaluru), US",AI Supply Chain & Dispatch,locus.sh/careers
+56,Arya.ai,India (Mumbai),AI for BFSI & Autonomous Agents,arya.ai/careers
+57,SigTuple,India (Bengaluru),AI-powered Pathology & Robotics,[sigtuple.com/careers](https://sigtuple.com/careers)
+58,Observe.AI,"India (Bengaluru), US",Contact Center AI & Voice Analytics,observe.ai/careers
+59,Hevo Data / Sprinklr,"India (Gurugram/Blr), US",Unified CXM & AI Analytics,[sprinklr.com/careers](https://sprinklr.com/careers)
+60,Niramai,India (Bengaluru),AI Thermal Screening for Oncology,[niramai.com/careers](https://niramai.com/careers)
+61,Tata Elxsi,India (Bengaluru),"Automotive, Media & Healthcare AI",[tataelxsi.com/careers](https://tataelxsi.com/careers)
+62,Tiger Analytics,"India (Chennai/Blr), US, UK",Enterprise AI & Data Engineering,[tigeranalytics.com/careers](https://tigeranalytics.com/careers)
+63,LatentView Analytics,"India (Chennai), US, UK",Predictive Analytics & GenAI,[latentview.com/careers](https://latentview.com/careers)
+64,Gnani.ai,India (Bengaluru),Indic Voice AI & Speech Recognition,gnani.ai/careers
+65,Neysa,India (Mumbai),AI Cloud & Acceleration Infrastructure,neysa.ai/careers
+66,Wayve,"UK (London), US",Embodied AI for Autonomous Driving,wayve.ai/careers
+67,Synthesia,"UK (London), US",Enterprise AI Video & Avatars,synthesia.io/careers
+68,Isomorphic Labs,UK (London),AI Drug Discovery (Alphabet),[isomorphiclabs.com/careers](https://isomorphiclabs.com/careers)
+69,ElevenLabs,"UK (London), US",Voice AI & Audio Synthesis,elevenlabs.io/careers
+70,PolyAI,"UK (London), US",Voice Assistants for Call Centers,poly.ai/careers
+71,Darktrace,"UK (Cambridge), US",Self-Learning Cybersecurity AI,[darktrace.com/careers](https://darktrace.com/careers)
+72,BenevolentAI,UK (London),AI-Enabled Drug Development,[benevolent.com/careers](https://benevolent.com/careers)
+73,Tractable,"UK (London), US",Computer Vision for Auto/Property,tractable.ai/careers
+74,Peak,"UK (Manchester), India (Jaipur)",Decision Intelligence AI,peak.ai/careers
+75,Faculty,UK (London),Applied AI & Decision Intelligence,faculty.ai/careers
+76,Quantexa,"UK (London), US, India",Contextual Decision Intelligence,[quantexa.com/careers](https://quantexa.com/careers)
+77,Speechmatics,UK (Cambridge),Enterprise Speech-to-Text AI,[speechmatics.com/careers](https://speechmatics.com/careers)
+78,Exscientia,UK (Oxford),AI-Driven Pharmatech,exscientia.ai/careers
+79,Multiverse,"UK (London), US",AI Upskilling & Workforce Tech,multiverse.io/careers
+80,Robin AI,"UK (London), US",Legal AI Copilot,[robinai.com/careers](https://robinai.com/careers)
+#,Company,Primary Hub(s),Core AI Focus,Direct Careers Portal
+81,Perplexity AI,US,AI-Powered Answer Engine,perplexity.ai/hub/careers
+82,Runway,US,GenAI Video & Multimodal Tools,[runwayml.com/careers](https://runwayml.com/careers)
+83,Midjourney,US,AI Image Synthesis,[midjourney.com/careers](https://midjourney.com/careers)
+84,Glean,"US, India (Bengaluru)",Enterprise AI Work Assistant,[glean.com/careers](https://glean.com/careers)
+85,Harvey,"US, UK (London)",Generative AI for Legal & Finance,harvey.ai/careers
+86,Anysphere (Cursor),US,AI-Native Code Editor,[cursor.com/careers](https://cursor.com/careers)
+87,Cognition (Devin),US,Autonomous AI Software Agents,cognition.ai/careers
+88,Sierra,US,Conversational AI Agents for Brands,sierra.ai/careers
+89,Figure AI,US,General-Purpose Humanoid Robots,figure.ai/careers
+90,Anduril Industries,"US, UK",Defense AI & Autonomous Systems,[anduril.com/careers](https://anduril.com/careers)
+91,Shield AI,US,Autonomous Pilot & Defense AI,shield.ai/careers
+92,Skydio,US,Autonomous AI Drones,[skydio.com/careers](https://skydio.com/careers)
+93,Suno,US,Generative AI Music Creation,[suno.com/careers](https://suno.com/careers)
+94,Pika,US,AI Video Generation Platform,pika.art/careers
+95,Character.AI,US,Personalized Conversational Agents,character.ai/careers
+96,Adept AI,US,Action-oriented Enterprise Agents,adept.ai/careers
+97,Writer,"US, UK",Full-Stack Enterprise GenAI,[writer.com/careers](https://writer.com/careers)
+98,Jasper,US,Enterprise AI Marketing Copilot,jasper.ai/careers
+99,Eightfold AI,"US, India (Noida/Blr)",AI Talent Intelligence Platform,eightfold.ai/careers
+100,UiPath,"US, UK, India (Bengaluru)",Agentic Automation & RPA,[uipath.com/company/careers](https://uipath.com/company/careers)

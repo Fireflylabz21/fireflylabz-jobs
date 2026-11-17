@@ -234,6 +234,8 @@ def upsert_job(
     embedding: list = None,
     posted_at: str = None,
     is_active: bool = True,
+    roles_responsibilities: str = "",
+    salary_compensation: str = "",
     conn=None,
 ) -> None:
     """Insert a new job or update if apply_url already exists (dedup-by-apply_url).
@@ -255,7 +257,7 @@ def upsert_job(
         """INSERT INTO jobs
              (title, company, location, work_style, min_experience,
               max_experience, required_skills, description_text, apply_url,
-              embedding, posted_at, is_active)
+              embedding, posted_at, is_active, roles_responsibilities, salary_compensation)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, %s, %s)
            ON CONFLICT (apply_url) DO UPDATE
              SET title = EXCLUDED.title,
@@ -266,7 +268,9 @@ def upsert_job(
                   max_experience = EXCLUDED.max_experience,
                  description_text = EXCLUDED.description_text,
                  required_skills = EXCLUDED.required_skills,
-                 is_active = TRUE;""",
+                 is_active = TRUE,
+                      roles_responsibilities = EXCLUDED.roles_responsibilities,
+                      salary_compensation = EXCLUDED.salary_compensation;""",
         (title, company, location, work_style,
          min_experience, max_experience, skills, description_text,
-         apply_url, emb_val, posted_at, is_active))
+         apply_url, emb_val, posted_at, is_active, roles_responsibilities, salary_compensation)
