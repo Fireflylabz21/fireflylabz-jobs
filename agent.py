@@ -10,6 +10,49 @@ from llm_client import generate_text
 _configured = True  # kept for compat; generation uses llm_client
 
 
+def _is_location_match(subscriber_loc: str, job_loc: str) -> bool:
+    """Check if a job location matches or is near the subscriber's preferred location.
+    
+    Location is the primary filter. Match if:
+    - Locations are exactly the same
+    - Job is remote (matches any location)
+    - Subscriber location is found within job location (e.g., subscriber in "Chennai" matches "Chennai, India")
+    """
+    if not subscriber_loc or not job_loc:
+        return False
+    
+    sub_lower = subscriber_loc.strip().lower()
+    job_lower = job_loc.strip().lower()
+    
+    # Remote job matches any location
+    if "remote" in job_lower:
+        return True
+    
+    # Exact match
+    if sub_lower == job_lower:
+        return True
+    
+    # Subscriber location is a substring of job location (e.g., "Chennai" matches "Chennai, India")
+    if sub_lower in job_lower:
+        return True
+    
+    return False
+
+
+def _filter_jobs_by_location(subscriber: Dict[str, Any], candidate_jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filter jobs by location as the primary filter.
+    
+    Args:
+        subscriber: Subscriber dict with "_location" key
+        candidate_jobs: List of job dicts with "location" key
+    
+    Returns:
+        Jobs that pass the location filter
+    """
+    sub_loc = subscriber.get("_location", "")
+    return [j for j in candidate_jobs if _is_location_match(sub_loc, j.get("location", ""))]
+
+
 def _anonymized_profile(subscriber: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "role": subscriber.get("Primary Role", ""),

@@ -74,7 +74,7 @@ def clean_description(text: str, max_len: int = 500) -> str:
     return text
 
 
-def remove_about_sections
+def remove_about_sections(parts):
     keep = []
     skip_prefixes = (
         "about us", "about the company", "about company", "our company",
