@@ -274,3 +274,4 @@ def upsert_job(
         (title, company, location, work_style,
          min_experience, max_experience, skills, description_text,
          apply_url, emb_val, posted_at, is_active, roles_responsibilities, salary_compensation)
+    )
