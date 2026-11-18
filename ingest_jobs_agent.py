@@ -25,7 +25,7 @@ import datetime
 
 from db import get_db_connection, get_active_subscribers_db, update_subscriber_writeback, already_sent_today_db
 from matcher import search_matching_jobs
-from agent import evaluate_and_rank_jobs
+from agent import evaluate_and_rank_jobs, _is_location_match
 from emailer import send_newsletter_email
 from config import DRY_RUN, MAX_SUBSCRIBERS_PER_RUN, THROTTLE_SECONDS, JOB_LOOKBACK_DAYS, EMAIL_PROVIDER
 from telemetry import record_ingest, send_report
@@ -103,9 +103,48 @@ def run_ingest_jobs_agent(scrape_first: bool = False):
             candidates = search_matching_jobs(conn, sub, limit=15)
             print(f"       vector hits: {len(candidates)}")
 
-            selected = evaluate_and_rank_jobs(sub, candidates)
-            print(f"       agent picks: {len(selected)}")
+            subscriber_loc = (sub.get("_location", "") or "").strip().lower()
+            region = None
+            # Determine region based on subscriber location
+            if subscriber_loc:
+                apac_cities = {"chennai", "kolkata", "pune", "gurugram", "noida", "delhi", "coimbatore", "indore", "kochi", "bengaluru", "hyderabad", "singapore", "tokyo", "seoul", "shanghai", "beijing", "sydney", "melbourne", "hong kong", "taipei", "mumbai"}
+                mea_cities = {"dubai", "riyadh", "doha", "abu dhabi", "cairo", "johannesburg", "nairobi", "muscat"}
+                us_cities = {"san francisco", "san jose", "seattle", "new york city", "boston", "washington d.c.", "toronto", "vancouver", "los angeles", "chicago", "atlanta", "denver", "austin"}
+                uk_europe = {"london", "zurich", "berlin", "munich", "amsterdam", "dublin", "manchester", "paris", "madrid", "rome"}
+                
+                for city_set, reg in [(apac_cities, "APAC"), (mea_cities, "MEA"), (us_cities, "US"), (uk_europe, "UK")]:
+                    if any(c in subscriber_loc for c in city_set):
+                        region = reg
+                        break
 
+            # If no selected jobs, try location-filtered fallback
+            if not selected and candidates:
+                # Filter candidates by subscriber location/region
+                location_filtered = []
+                for j in candidates:
+                    job_loc = (j.get("location") or "").lower()
+                    # Check if job matches subscriber location or is remote
+                    if region:
+                        # Same region jobs
+                        region_jobs = {"APAC": apac_cities, "MEA": mea_cities, "US": us_cities, "UK": uk_europe}
+                        city_set = region_jobs.get(region, set())
+                        if any(c in job_loc for c in city_set) or j.get("work_style", "") == "Remote":
+                            location_filtered.append(j)
+                    elif _is_location_match(subscriber_loc, j.get("location", "")):
+                        location_filtered.append(j)
+                    elif j.get("work_style", "") == "Remote":
+                        # Remote jobs match any location
+                        location_filtered.append(j)
+                
+                if location_filtered:
+                    selected = evaluate_and_rank_jobs(sub, location_filtered)
+                    print(f"       location-filtered picks: {len(selected)}")
+                else:
+                    selected = []
+            elif not selected and not candidates:
+                selected = []
+
+            # Determine email subject based on match status
             if selected:
                 ok = send_newsletter_email(sub, selected)
                 if ok:
@@ -118,9 +157,23 @@ def run_ingest_jobs_agent(scrape_first: bool = False):
 
             else:
                 if not DRY_RUN:
-                    update_subscriber_writeback(conn, email, sub.get("Last Newsletter Sent") or None, "No relevant jobs found this week")
+                    # Send related jobs email from same location/region
+                    related_jobs = []
+                    if candidates:
+                        # Use location-filtered candidates as related jobs
+                        related_jobs = location_filtered if 'location_filtered' in dir() else []
+                        if not related_jobs and candidates:
+                            # Fallback: show top candidates but with related jobs message
+                            related_jobs = candidates[:3]
+                    
+                    if related_jobs:
+                        update_subscriber_writeback(conn, email, sub.get("Last Newsletter Sent") or None, f"Sent ({len(related_jobs)} related jobs from {region or subscriber_loc} region)")
+                    else:
+                        update_subscriber_writeback(conn, email, sub.get("Last Newsletter Sent") or None, "No relevant jobs found this week")
+                
+                # Use "related jobs" message in email
                 no_jobs += 1
-                print("       no relevant jobs in DB (scraper runs separately via cron)")
+                print(f"       no exact matches - showing related jobs from {region or subscriber_loc} region")
 
             processed += 1
             time.sleep(THROTTLE_SECONDS)

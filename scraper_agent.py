@@ -148,125 +148,38 @@ def prepare_job_description(description_text: str, location: str) -> str:
     return desc
 
 
-"""Scraper sources - real implementations with fallback stubs."""
-def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
-    """Scrape RemoteOK API for jobs matching roles/locations.
+"""Scraper sources - company career portals only."""
+def scrape_company_careers_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape top company career pages for jobs matching roles/locations.
+    Uses COMPANY_LIST and iterates through Greenhouse/Lever APIs for each company.
     Returns list of job dicts. If no jobs found, returns empty list.
     """
     jobs = []
-    try:
-        import requests
-        logger.info(f"RemoteOK chunk: {len(roles)} roles x {len(locations)} locations")
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-            "Accept": "application/json",
-        }
-        resp = requests.get("https://remoteok.com/api", headers=headers, timeout=5)
-        if resp.status_code != 200:
-            logger.warning(f"RemoteOK API returned status {resp.status_code}")
-            return jobs
-        data = resp.json()
-        # RemoteOK returns a list of dicts; last element is often a "legal" key
-        if isinstance(data, dict) and "legal" in data:
-            actual_jobs = [d for d in data if isinstance(d, dict) and d != "legal"]
-        elif isinstance(data, list):
-            actual_jobs = [d for d in data if isinstance(d, dict)]
-        else:
-            actual_jobs = []
-        for job in actual_jobs:
-            title = job.get("position", "").lower()
-            loc = job.get("location", "").lower()
-            # Match by role keyword and location keyword
-            role_match = any(
-                r.lower().replace(" ", "") in title.replace(" ", "")
-                or r.split()[0].lower() in title
-                for r in roles
-            )
-            loc_match = any(loc and l.lower() in loc for l in locations) if loc else False
-            if role_match and (loc_match or "remote" in loc):
-                apply_url = job.get("url", "")
-                if not apply_url:
+    seen_urls: set = set()
+    for company in COMPANY_LIST:
+        for slug in _slug_variants(company):
+            found = []
+            for fetcher in (scrape_greenhouse_board, scrape_lever_board):
+                try:
+                    found = fetcher(slug, roles, locations)
+                except Exception:
+                    found = []
+                if found:
+                    break
+            for j in found:
+                url = j.get("apply_url", "")
+                if not url or url in seen_urls:
                     continue
-                jobs.append({
-                    "title": job.get("position", ""),
-                    "company": job.get("company", ""),
-                    "location": job.get("location", ""),
-                    "work_style": "Remote",
-                    "min_experience": None,
-                    "max_experience": None,
-                    "required_skills": job.get("tags", []),
-                    "description_text": clean_description(job.get("description", ""), 500),
-                    "apply_url": apply_url,
-                    "posted_at": job.get("date", ""),
-                    "region": "Remote",
-                })
-        logger.info(f"RemoteOK: found {len(jobs)} matching jobs")
-    except ImportError:
-        logger.debug("requests not available for RemoteOK scraper")
-    except Exception as e:
-        logger.warning(f"RemoteOK scrape error: {e}")
-    return jobs
-
-
-def scrape_arbeitnow_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
-    """Scrape Arbeitnow API for jobs matching roles/locations.
-    Returns list of job dicts. If no jobs found, returns empty list.
-    """
-    jobs = []
-    try:
-        import requests
-        logger.info(f"Arbeitnow chunk: {len(roles)} roles x {len(locations)} locations")
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        }
-        # Arbeitnow job board API - filters by location_type=remote for broad reach
-        url = "https://www.arbeitnow.com/api/job-board/"
-        resp = requests.get(url, headers=headers, timeout=5)
-        if resp.status_code != 200:
-            logger.warning(f"Arbeitnow API returned status {resp.status_code}")
-            return jobs
-        data = resp.json()
-        if not isinstance(data, list):
-            data = data.get("jobs", []) if isinstance(data, dict) else []
-        for job in data:
-            if not isinstance(job, dict):
-                continue
-            title = (job.get("title") or "").lower()
-            loc = (job.get("location") or "").lower()
-            # Match by role keyword and location keyword
-            role_match = any(
-                r.lower().replace(" ", "") in title.replace(" ", "")
-                or r.split()[0].lower() in title
-                for r in roles
-            )
-            loc_match = any(loc and l.lower() in loc for l in locations) if loc else False
-            if role_match and (loc_match or "remote" in loc):
-                apply_url = job.get("url", "") or job.get("apply_url", "")
-                if not apply_url:
-                    continue
-                jobs.append({
-                    "title": job.get("title", ""),
-                    "company": job.get("company", ""),
-                    "location": job.get("location", ""),
-                    "work_style": "Remote" if "remote" in loc else "Onsite",
-                    "min_experience": None,
-                    "max_experience": None,
-                    "required_skills": job.get("tags", []),
-                    "description_text": clean_description(job.get("description", ""), 500),
-                    "apply_url": apply_url,
-                    "posted_at": job.get("created_at", ""),
-                    "region": "EU",
-                })
-        logger.info(f"Arbeitnow: found {len(jobs)} matching jobs")
-    except ImportError:
-        logger.debug("requests not available for Arbeitnow scraper")
-    except Exception as e:
-        logger.warning(f"Arbeitnow scrape error: {e}")
-    return jobs
+                seen_urls.add(url)
+                j["company"] = company
+            jobs.extend(found)
+    # Deduplicate by apply_url
+    seen = set(); uniq = []
+    for j in jobs:
+        if j.get("apply_url") in seen: continue
+        seen.add(j["apply_url"]); uniq.append(j)
+    logger.info(f"Company careers: found {len(uniq)} matching jobs across {len(COMPANY_LIST)} companies")
+    return uniq
 
 
 """DB helpers."""
@@ -852,6 +765,9 @@ COMPANY_LIST = [
     "LTIMindtree", "Tech Mahindra", "Tata Elxsi", "Cognizant India", "Fractal Analytics",
     "Sarvam AI", "Yellow.ai", "Uniphore", "CoRover.ai", "InMobi", "Mu Sigma",
     "IdeaForge", "Cropin", "Gramener",
+    # Additional high-value AI companies from Top 100 CSV
+    "Mistral AI", "Perplexity AI", "Sarvam AI", "Yellow.ai", "Glean", "Harvey",
+    "Cursor", "Devin", "Sierra", "Anduril Industries", "Shield AI",
 ]
 
 
@@ -873,11 +789,7 @@ def _clean_html_text(html: str) -> str:
         return clean_description(html, 500)
 
 
-def scrape_greenhouse_board(slug: str, roles: List[str], locations: List[str]) -> List[Dict]:
-    jobs = []
-    try:
-        import requests
-        url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
+
         resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code != 200:
             return jobs
