@@ -1273,7 +1273,6 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
             "region": "US",
             "roles_responsibilities": "",
             "salary_compensation": "",
-            }
             seen_urls.add(full)
             jobs.append(job)
             found_for_company = True
