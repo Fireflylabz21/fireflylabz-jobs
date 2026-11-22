@@ -1260,6 +1260,7 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
                 desc = clean_description(title + " " + company + " " + loc_name, 500)
                 ws = "Remote" if "remote" in (title + " " + loc_name).lower() else "Onsite"
             if not title or len(title) < 6:
+                continue
 "title": title[:120],
 "company": company,
 "location": loc_name,
