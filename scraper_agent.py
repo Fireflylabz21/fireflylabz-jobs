@@ -29,6 +29,218 @@ from telemetry import record_scrape, send_report
 FAILED_JOBS: List[str] = []
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+# ✅ CIRCUIT BREAKER PATTERN FOR FAULT ISOLATION
+class CircuitBreaker:
+    """Circuit breaker pattern for fault isolation per-agent.
+
+    Prevents cascading failures by tripping after N consecutive failures,
+    and allows half-open recovery after a timeout.
+    """
+
+    CLOSED = "CLOSED"  # Normal operation
+    OPEN = "OPEN"      # Failing, skip calls
+    HALF_OPEN = "HALF_OPEN"  # Testing recovery
+
+    def __init__(self, failure_threshold: int = 3, reset_timeout: float = 60.0):
+        self.failure_threshold = failure_threshold
+        self.reset_timeout = reset_timeout
+        self.state = self.CLOSED
+        self.failure_count = 0
+        self.last_failure_time: float = 0.0
+        self.success_count = 0
+
+    def call(self, func: Callable, *args, **kwargs) -> Any:
+        """Execute function with circuit breaker protection."""
+        if self.state == self.OPEN:
+            if self.last_failure_time and \
+               (time.time() - self.last_failure_time) > self.reset_timeout:
+                self.state = self.HALF_OPEN
+                self.success_count = 0
+            else:
+                raise CircuitOpenError(f"Circuit breaker OPEN for {func.__name__}")
+
+        try:
+            result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise
+
+    def _on_success(self):
+        """Reset failure count on success."""
+        self.failure_count = 0
+        if self.state == self.HALF_OPEN:
+            self.success_count += 1
+            if self.success_count >= 2:
+                self.state = self.CLOSED
+                self.success_count = 0
+
+    def _on_failure(self):
+        """Track failure and potentially open circuit."""
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+
+        if self.failure_count >= self.failure_threshold:
+            self.state = self.OPEN
+            logger.warning(
+                f"Circuit breaker OPEN after {self.failure_count} consecutive failures"
+            )
+
+    def force_open(self):
+        """Force circuit open (emergency)."""
+        self.state = self.OPEN
+        self.last_failure_time = time.time()
+
+    def force_close(self):
+        """Force circuit close (bypass)."""
+        self.state = self.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = 0.0
+
+
+class CircuitOpenError(Exception):
+    """Raised when circuit breaker is open and call is blocked."""
+    pass
+
+
+# ✅ AGENT CIRCUIT BREAKERS REGISTRY
+# Per-agent circuit breakers to prevent cascading failures
+AGENT_CIRCUIT_BREAKERS: Dict[str, CircuitBreaker] = {
+    "remoteok": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "arbeitnow": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "naukri": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "linkedin": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "remotive": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "jobicy": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "seek": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "instahyre": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "bayt": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "builtin": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "ai_companies": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+    "company_careers": CircuitBreaker(failure_threshold=3, reset_timeout=120),
+}
+
+
+# ✅ PER-AGENT SUCCESS RATE TRACKING
+# Tracks success/failure metrics for adaptive failover decisions
+AGENT_METRICS: Dict[str, Dict[str, Any]] = {
+    name: {"successes": 0, "failures": 0, "total_calls": 0, "last_failure": None}
+    for name in AGENT_CIRCUIT_BREAKERS.keys()
+}
+
+
+def track_agent_metrics(agent_name: str, success: bool):
+    """Track per-agent success/failure metrics for adaptive failover.
+
+    Args:
+        agent_name: Name of the scraper agent
+        success: Whether the scrape was successful
+    """
+    if agent_name in AGENT_METRICS:
+        metrics = AGENT_METRICS[agent_name]
+        metrics["total_calls"] += 1
+        if success:
+            metrics["successes"] += 1
+        else:
+            metrics["failures"] += 1
+            metrics["last_failure"] = datetime.datetime.now().isoformat()
+
+
+def get_agent_success_rate(agent_name: str) -> float:
+    """Get success rate (0.0 to 1.0) for an agent.
+
+    Used by the supervisor to prioritize reliable agents.
+
+    Args:
+        agent_name: Name of the scraper agent
+
+    Returns:
+        Success rate as a float between 0.0 and 1.0
+    """
+    if agent_name in AGENT_METRICS:
+        metrics = AGENT_METRICS[agent_name]
+        if metrics["total_calls"] > 0:
+            return metrics["successes"] / metrics["total_calls"]
+    return 0.5  # Default neutral rate
+
+
+def prioritize_agents_by_metrics() -> List[str]:
+    """Agents sorted by success rate (best first) for dynamic prioritization.
+
+    Returns:
+        List of agent names sorted by reliability (highest success rate first)
+    """
+    rates = []
+    for name in AGENT_METRICS:
+        rate = get_agent_success_rate(name)
+        rates.append((name, rate))
+    rates.sort(key=lambda x: x[1], reverse=True)
+    return [name for name, _ in rates]
+
+
+# ✅ EXPONENTIAL BACKOFF HELPER
+def exponential_backoff(attempt: int, base_delay: float = 1.0, max_delay: float = 60.0) -> float:
+    """Calculate exponential backoff delay with jitter.
+
+    Args:
+        attempt: Retry attempt number (0-indexed)
+        base_delay: Initial delay in seconds
+        max_delay: Maximum delay cap in seconds
+
+    Returns:
+        Delay in seconds before next retry
+    """
+    delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+    return delay
+
+
+def retry_with_backoff(
+    func: Callable,
+    *args,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    exceptions: tuple = (Exception,),
+    backoff_factor: float = 2.0,
+) -> Any:
+    """Retry function with exponential backoff and jitter.
+
+    Wraps a function call with automatic retries on failure,
+    using increasing delays between attempts to avoid thundering herd.
+
+    Args:
+        func: Function to execute
+        *args: Arguments to pass to func
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay in seconds
+        exceptions: Exception types to catch and retry on
+        backoff_factor: Multiplier for delay increase between attempts
+
+    Returns:
+        Result of func() if successful
+
+    Raises:
+        The original exception if all retries are exhausted
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return func(*args)
+        except exceptions as e:
+            if attempt < max_retries:
+                delay = exponential_backoff(attempt, base_delay, 60.0)
+                logger.warning(
+                    f"Attempt {attempt + 1} failed for {func.__name__}: {e}. "
+                    f"Retrying in {delay:.1f}s..."
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    f"All {max_retries + 1} attempts failed for {func.__name__}: {e}"
+                )
+                raise
+    raise RuntimeError(f"Function {func.__name__} failed after {max_retries + 1} retries")
 """ScraperAgentState - State for the LangGraph scraper orchestrator."""
 import pydantic
 
@@ -1085,14 +1297,78 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     logger.info(f"  Locations: {', '.join(locations)}")
     logger.info(f"  Experience bands: {', '.join(experience_bands)}")
 
-    all_jobs = []
+    all_jobs: List[Dict] = []
     # Filter: only jobs posted within last 48 hours
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=48)
-    remoteok_jobs = scrape_remoteok_chunk(roles, locations)
-    for j in remoteok_jobs:
-        j["region"] = j.get("region", "US")
-        j["posted_at"] = j.get("posted_at", cutoff.isoformat())
-        all_jobs.append(j)
+
+    # ✅ PARALLEL SCRAPING: Execute all 11 agents in parallel with circuit breaker & retry
+    import concurrent.futures
+
+    def _scrape_with_protection(agent_name: str, scraper_func: Callable) -> List[Dict]:
+        """Run a scraper agent with circuit breaker and retry protection."""
+        cb = AGENT_CIRCUIT_BREAKERS.get(agent_name)
+        if cb is None:
+            logger.error(f"No circuit breaker configured for {agent_name}")
+            track_agent_metrics(agent_name, False)
+            return []
+
+        def _inner():
+            try:
+                cb.call(retry_with_backoff, scraper_func, roles, locations)
+                track_agent_metrics(agent_name, True)
+                return scraper_func(roles, locations)
+            except Exception as e:
+                logger.warning(f"{agent_name} scraper failed: {e}")
+                track_agent_metrics(agent_name, False)
+                return []
+
+        try:
+            result = cb.call(_inner)
+            return result if result else []
+        except CircuitOpenError:
+            logger.info(f"Circuit breaker open for {agent_name}, skipping")
+            track_agent_metrics(agent_name, False)
+            return []
+
+    scraper_map = {
+        "remoteok": scrape_remoteok_chunk,
+        "arbeitnow": scrape_arbeitnow_chunk,
+        "naukri": scrape_naukri_chunk,
+        "linkedin": scrape_linkedin_chunk,
+        "remotive": scrape_remotive_chunk,
+        "jobicy": scrape_jobicy_chunk,
+        "ai_companies": scrape_direct_company_sites,
+        "company_careers": scrape_company_careers_chunk,
+        "seek": scrape_seek_chunk,
+        "instahyre": scrape_instahyre_chunk,
+        "bayt": scrape_bayt_chunk,
+        "builtin": scrape_builtin_chunk,
+    }
+
+    results: Dict[str, List[Dict]] = {}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+        future_to_agent = {}
+        for agent_name, scraper_func in scraper_map.items():
+            future = executor.submit(_scrape_with_protection, agent_name, scraper_func)
+            future_to_agent[future] = agent_name
+
+        for future in concurrent.futures.as_completed(future_to_agent):
+            agent_name = future_to_agent[future]
+            try:
+                jobs = future.result()
+                results[agent_name] = jobs
+                logger.info(f"Agent {agent_name}: {len(jobs)} jobs")
+            except Exception as e:
+                logger.error(f"Agent {agent_name} generated exception: {e}")
+                track_agent_metrics(agent_name, False)
+
+    # Aggregate results from all successful agents
+    for agent_name in scraper_map:
+        if agent_name in results:
+            all_jobs.extend(results[agent_name])
+
+    logger.info(f"Chunk total: {len(all_jobs)} jobs aggregated from {len(results)} agents")
     arbetnow_jobs = scrape_arbeitnow_chunk(roles, locations)
     for j in arbetnow_jobs:
         j["region"] = j.get("region", "EU")
