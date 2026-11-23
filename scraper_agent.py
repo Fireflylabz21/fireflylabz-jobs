@@ -11,7 +11,7 @@ import datetime
 import random
 import re
 import logging
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any, Callable
 
 import numpy as np
 from langgraph.graph import StateGraph, START, END
