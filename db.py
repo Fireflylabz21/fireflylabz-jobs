@@ -258,7 +258,7 @@ def upsert_job(
              (title, company, location, work_style, min_experience,
               max_experience, required_skills, description_text, apply_url,
               embedding, posted_at, is_active, roles_responsibilities, salary_compensation)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, %s, %s)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, %s, %s, %s, %s)
            ON CONFLICT (apply_url) DO UPDATE
              SET title = EXCLUDED.title,
                  company = EXCLUDED.company,
