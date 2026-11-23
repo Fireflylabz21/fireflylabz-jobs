@@ -967,6 +967,92 @@ def scrape_builtin_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
         return jobs
 
 
+def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape RemoteOK (free remote jobs API) and filter by roles."""
+    jobs = []
+    try:
+        import requests
+        logger.info(f"RemoteOK: fetching remote jobs for {len(roles)} roles")
+        resp = requests.get("https://remoteok.com/api", timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
+            return jobs
+        data = resp.json()
+        role_l = [r.lower() for r in roles]
+        for j in data:
+            title = (j.get("position") or "").strip()
+            if not title:
+                continue
+            if not any(r.split()[0] in title.lower() for r in role_l):
+                continue
+            company = j.get("company", "")
+            location = j.get("location", "") or "Remote"
+            url = j.get("url", "")
+            if not url:
+                continue
+            jobs.append({
+                "title": title,
+                "company": company,
+                "location": location,
+                "work_style": "Remote",
+                "min_experience": None,
+                "max_experience": None,
+                "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
+                "description_text": clean_description(j.get("description", ""), 500),
+                "apply_url": url,
+                "posted_at": j.get("date"),
+                "region": "US",
+                "roles_responsibilities": "",
+                "salary_compensation": "",
+            })
+        logger.info(f"RemoteOK: {len(jobs)} matching jobs")
+    except Exception as e:
+        logger.warning(f"RemoteOK scrape failed: {e}")
+    return jobs
+
+
+def scrape_arbeitnow_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape Arbeitnow (free remote jobs API) and filter by roles."""
+    jobs = []
+    try:
+        import requests
+        logger.info(f"Arbeitnow: fetching remote jobs for {len(roles)} roles")
+        resp = requests.get("https://arbeitnow.com/api/job-board-api", timeout=20)
+        if resp.status_code != 200:
+            return jobs
+        data = resp.json().get("data", [])
+        role_l = [r.lower() for r in roles]
+        for j in data:
+            title = (j.get("title") or "").strip()
+            if not title:
+                continue
+            if not any(r.split()[0] in title.lower() for r in role_l):
+                continue
+            company = j.get("company_name", "")
+            location = j.get("location", "") or "Remote"
+            url = j.get("url", "")
+            if not url:
+                continue
+            jobs.append({
+                "title": title,
+                "company": company,
+                "location": location,
+                "work_style": "Remote",
+                "min_experience": None,
+                "max_experience": None,
+                "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
+                "description_text": clean_description(j.get("description", ""), 500),
+                "apply_url": url,
+                "posted_at": j.get("created_at"),
+                "region": "EU",
+                "roles_responsibilities": "",
+                "salary_compensation": "",
+            })
+        logger.info(f"Arbeitnow: {len(jobs)} matching jobs")
+    except Exception as e:
+        logger.warning(f"Arbeitnow scrape failed: {e}")
+    return jobs
+
+
 COMPANY_LIST = [
     "NVIDIA", "Advanced Micro Devices", "Intel Corporation", "Broadcom", "Marvell Technology",
     "Qualcomm", "Microsoft Corporation", "Alphabet", "Amazon Web Services", "Meta Platforms",
@@ -1001,7 +1087,12 @@ def _clean_html_text(html: str) -> str:
         return clean_description(html, 500)
 
 
-
+def scrape_greenhouse_board(slug: str, roles: List[str], locations: List[str]) -> List[Dict]:
+    """Scrape a Greenhouse job board for a given company slug."""
+    jobs = []
+    try:
+        import requests
+        url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
         resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code != 200:
             return jobs
@@ -1089,37 +1180,6 @@ def scrape_lever_board(slug: str, roles: List[str], locations: List[str]) -> Lis
     except Exception as e:
         logger.debug(f"Lever {slug} failed: {e}")
         return jobs
-
-
-def scrape_company_careers_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
-    jobs = []
-    seen_urls: set = set()
-    for company in COMPANY_LIST:
-        for slug in _slug_variants(company):
-            found = []
-            for fetcher in (scrape_greenhouse_board, scrape_lever_board):
-                try:
-                    found = fetcher(slug, roles, locations)
-                except Exception:
-                    found = []
-                if found:
-                    break
-            for j in found:
-                url = j.get("apply_url", "")
-                if not url or url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                j["company"] = company
-                jobs.append(j)
-            if found:
-                break
-            try:
-                import time
-                time.sleep(0.1)
-            except Exception:
-                pass
-    logger.info(f"Company careers: {len(jobs)} matching jobs")
-    return jobs
 
 
 # AI Companies Career Portals (from Top 100 Ai companies.csv)
@@ -1225,8 +1285,6 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
     loc_l = [l.lower() for l in locations]
 
     for company, careers_url in AI_COMPANIES_CAREERS:
-        if found_for_company:
-            break
         try:
             resp = requests.get(careers_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
             if resp.status_code != 200:
@@ -1237,21 +1295,21 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
                 href = a["href"]
                 if not title or len(title) < 6:
                     continue
-            if "job" not in href.lower() and "career" not in href.lower() and "position" not in href.lower() and "opening" not in href.lower():
-                continue
-            if not any(r.split()[0] in title.lower() for r in role_l):
-                continue
-            full = href if href.startswith("http") else careers_url.rstrip("/") + "/" + href.lstrip("/")
-            if full in seen_urls:
-                continue
-            loc_name = ""
-            parent = a.find_parent()
-            if parent:
-                txt = parent.get_text(" ", strip=True)
-                for l in locations:
-                    if l.lower() in txt.lower():
-                        loc_name = l
-                        break
+                if "job" not in href.lower() and "career" not in href.lower() and "position" not in href.lower() and "opening" not in href.lower():
+                    continue
+                if not any(r.split()[0] in title.lower() for r in role_l):
+                    continue
+                full = href if href.startswith("http") else careers_url.rstrip("/") + "/" + href.lstrip("/")
+                if full in seen_urls:
+                    continue
+                loc_name = ""
+                parent = a.find_parent()
+                if parent:
+                    txt = parent.get_text(" ", strip=True)
+                    for l in locations:
+                        if l.lower() in txt.lower():
+                            loc_name = l
+                            break
                 if not loc_name:
                     loc_name = locations[0] if locations else "Unknown"
                 if loc_l and loc_name and loc_name != "Unknown" and not any(l.split()[0] in loc_name.lower() for l in loc_l):
@@ -1259,28 +1317,27 @@ def scrape_direct_company_sites(roles: List[str], locations: List[str]) -> List[
                         continue
                 desc = clean_description(title + " " + company + " " + loc_name, 500)
                 ws = "Remote" if "remote" in (title + " " + loc_name).lower() else "Onsite"
-            if not title or len(title) < 6:
-                continue
-"title": title[:120],
-"company": company,
-"location": loc_name,
-"work_style": ws,
-"min_experience": None,
-            "max_experience": None,
-            "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
-            "description_text": desc,
-            "apply_url": full,
-            "posted_at": None,
-            "region": "US",
-            "roles_responsibilities": "",
-            "salary_compensation": "",
-            seen_urls.add(full)
-            jobs.append(job)
-            found_for_company = True
-            except Exception:
-                continue
-            logger.info(f"Direct company sites: {len(jobs)} matching jobs")
-        return jobs
+                job = {
+                    "title": title[:120],
+                    "company": company,
+                    "location": loc_name,
+                    "work_style": ws,
+                    "min_experience": None,
+                    "max_experience": None,
+                    "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
+                    "description_text": desc,
+                    "apply_url": full,
+                    "posted_at": None,
+                    "region": "US",
+                    "roles_responsibilities": "",
+                    "salary_compensation": "",
+                }
+                seen_urls.add(full)
+                jobs.append(job)
+        except Exception:
+            continue
+    logger.info(f"Direct company sites: {len(jobs)} matching jobs")
+    return jobs
 
 def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     """LangGraph node: scrape one chunk of jobs."""
