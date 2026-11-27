@@ -103,6 +103,10 @@ def run_ingest_jobs_agent(scrape_first: bool = False):
             candidates = search_matching_jobs(conn, sub, limit=15)
             print(f"       vector hits: {len(candidates)}")
 
+            # Rank initial candidates with Gemini to produce `selected`
+            selected = evaluate_and_rank_jobs(sub, candidates) if candidates else []
+            print(f"       initial picks: {len(selected)}")
+
             subscriber_loc = (sub.get("_location", "") or "").strip().lower()
             region = None
             # Determine region based on subscriber location
