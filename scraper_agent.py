@@ -254,6 +254,22 @@ class ScraperAgentState(pydantic.BaseModel):
     batch_index: int = pydantic.Field(default=0)
 
 
+def _epoch_to_iso(value) -> Optional[str]:
+    """Convert a Unix epoch (int/float/str seconds) to an ISO-8601 UTC string.
+
+    Arbeitnow/RemoteOK and similar APIs return created_at/date as epoch seconds,
+    but jobs.posted_at is timestamptz. Pass None/empty/already-string values through.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        return value
+    try:
+        return datetime.datetime.fromtimestamp(float(value), tz=datetime.timezone.utc).isoformat()
+    except (ValueError, TypeError, OSError):
+        return None
+
+
 """Chunk helpers."""
 def get_today_chunk() -> Optional[Tuple[List[str], List[str], List[str]]]:
     chunks = get_today_chunks()
@@ -433,6 +449,7 @@ def deduplicate_and_upsert(jobs: List[Dict]) -> Tuple[int, int]:
         if isinstance(skills, str):
             skills = [x.strip() for x in skills.split(",") if x.strip()]
         job["required_skills"] = skills
+        job["posted_at"] = _epoch_to_iso(job.get("posted_at"))
         for k in ("min_experience", "max_experience"):
             v = job.get(k)
             if v is not None:
@@ -999,7 +1016,7 @@ def scrape_remoteok_chunk(roles: List[str], locations: List[str]) -> List[Dict]:
                 "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
                 "description_text": clean_description(j.get("description", ""), 500),
                 "apply_url": url,
-                "posted_at": j.get("date"),
+                "posted_at": _epoch_to_iso(j.get("date")),
                 "region": "US",
                 "roles_responsibilities": "",
                 "salary_compensation": "",
@@ -1042,7 +1059,7 @@ def scrape_arbeitnow_chunk(roles: List[str], locations: List[str]) -> List[Dict]
                 "required_skills": [r for r in roles if r.split()[0].lower() in title.lower()] or ([roles[0]] if roles else []),
                 "description_text": clean_description(j.get("description", ""), 500),
                 "apply_url": url,
-                "posted_at": j.get("created_at"),
+                "posted_at": _epoch_to_iso(j.get("created_at")),
                 "region": "EU",
                 "roles_responsibilities": "",
                 "salary_compensation": "",
@@ -1355,8 +1372,6 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
     logger.info(f"  Experience bands: {', '.join(experience_bands)}")
 
     all_jobs: List[Dict] = []
-    # Filter: only jobs posted within last 48 hours
-    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=48)
 
     # ✅ PARALLEL SCRAPING: Execute all 11 agents in parallel with circuit breaker & retry
     import concurrent.futures
@@ -1426,11 +1441,6 @@ def scrape_chunk_node(state: ScraperAgentState) -> ScraperAgentState:
             all_jobs.extend(results[agent_name])
 
     logger.info(f"Chunk total: {len(all_jobs)} jobs aggregated from {len(results)} agents")
-    arbetnow_jobs = scrape_arbeitnow_chunk(roles, locations)
-    for j in arbetnow_jobs:
-        j["region"] = j.get("region", "EU")
-        j["posted_at"] = j.get("posted_at", cutoff.isoformat())
-    all_jobs.extend(arbetnow_jobs)
     naukri_jobs = scrape_naukri_chunk(roles, locations)
     all_jobs.extend(naukri_jobs)
     linkedin_jobs = scrape_linkedin_chunk(roles, locations)
@@ -1671,7 +1681,6 @@ Examples:
             print(f"  - {u}")
         if args.report_failures:
             try:
-                from telemetry import send_report
                 send_report("Scraper Failure Report")
             except Exception as e:
                 print(f"[telemetry] failed: {e}")
